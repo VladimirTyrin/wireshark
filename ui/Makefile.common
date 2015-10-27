@@ -65,11 +65,14 @@ WIRESHARK_UI_SRC = \
 	profile.c		\
 	proto_hier_stats.c	\
 	recent.c		\
+	rtp_media.c		\
 	rtp_stream.c		\
 	service_response_time.c	\
 	software_update.c	\
 	ssl_key_export.c	\
 	tap_export_pdu.c	\
+	tap-iax2-analysis.c	\
+	tap-rlc-graph.c	\
 	tap-rtp-common.c	\
 	tap-sctp-analysis.c \
 	tap-sequence-analysis.c	\
@@ -106,13 +109,16 @@ noinst_HEADERS = \
 	proto_hier_stats.h	\
 	recent.h		\
 	recent_utils.h		\
-	rtp_analysis.h		\
+	rtp_media.h		\
 	rtp_stream.h		\
 	service_response_time.h	\
 	simple_dialog.h		\
 	software_update.h	\
 	ssl_key_export.h	\
 	tap_export_pdu.h	\
+	tap-iax2-analysis.h	\
+	tap-rlc-graph.h	\
+	tap-rtp-analysis.h	\
 	tap-rtp-common.h	\
 	tap-sctp-analysis.h  \
 	tap-sequence-analysis.h	\
@@ -122,6 +128,5 @@ noinst_HEADERS = \
 	time_shift.h		\
 	traffic_table_ui.h	\
 	ui_util.h		\
-	utf8_entities.h		\
 	util.h			\
 	voip_calls.h

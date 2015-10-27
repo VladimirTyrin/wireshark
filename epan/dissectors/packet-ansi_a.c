@@ -1725,22 +1725,13 @@ content_fill_aux(
     int                 hf_content,
     int                 hf_content_fill_bits)
 {
-    static guint8       lo_masks[8] = { 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff };
-    guint8              oct;
-
     proto_tree_add_item(tree, hf_content, tvb, offset, content_len, ENC_NA);
 
     offset += content_len;
 
     if (fill_bits)
     {
-        oct = tvb_get_guint8(tvb, offset - 1);
-
-        other_decode_bitfield_value(a_bigbuf, oct, lo_masks[fill_bits-1], 8);
-        proto_tree_add_uint_format(tree, hf_content_fill_bits, tvb, offset - 1, 1,
-            oct & lo_masks[fill_bits-1],
-            "%s = Fill Bits",
-            a_bigbuf);
+        proto_tree_add_bits_item(tree, hf_content_fill_bits, tvb, (offset - 1)*8, fill_bits-1, ENC_NA);
     }
 }
 
@@ -4967,13 +4958,9 @@ elem_is2000_scr(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint32
         proto_tree_add_item(scr_subtree, hf_ansi_a_is2000_scr_socr_fch_frame_size_support_ind, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(scr_subtree, hf_ansi_a_is2000_scr_socr_for_fch_rc, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
-        value = (oct & 0x01) << 4;
-
         curr_offset += 1;
 
         oct = tvb_get_guint8(tvb, curr_offset);
-
-        value |= (oct & 0xf0) >> 4;
 
         proto_tree_add_item(scr_subtree, hf_ansi_a_is2000_scr_socr_rev_fch_rc, tvb, curr_offset - 1, 2, ENC_BIG_ENDIAN);
         bit_mask = 0x08;
@@ -4985,7 +4972,7 @@ elem_is2000_scr(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint32
         bit_mask = 0x40;
     }
 
-    proto_tree_add_bits_item(scr_subtree, hf_ansi_a_dcch_cc_incl, tvb, (curr_offset*8)+bit_offset, 1, ENC_NA);
+    proto_tree_add_bits_item(scr_subtree, hf_ansi_a_dcch_cc_incl, tvb, (curr_offset*8)+(8-bit_offset), 1, ENC_NA);
     if (oct & bit_mask)
     {
         /* can't be bothered to do the rest of the decode */
@@ -4999,7 +4986,7 @@ elem_is2000_scr(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint32
         bit_mask >>= 1;
         bit_offset--;
 
-        proto_tree_add_bits_item(scr_subtree, hf_ansi_a_for_sch_cc_incl, tvb, (curr_offset*8)+bit_offset, 1, ENC_NA);
+        proto_tree_add_bits_item(scr_subtree, hf_ansi_a_for_sch_cc_incl, tvb, (curr_offset*8)+(8-bit_offset), 1, ENC_NA);
         if (oct & bit_mask)
         {
             /* can't be bothered to do the rest of the decode */
@@ -5013,7 +5000,7 @@ elem_is2000_scr(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint32
             bit_mask >>= 1;
             bit_offset--;
 
-            proto_tree_add_bits_item(scr_subtree, hf_ansi_a_rev_sch_cc_incl, tvb, (curr_offset*8)+bit_offset, 1, ENC_NA);
+            proto_tree_add_bits_item(scr_subtree, hf_ansi_a_rev_sch_cc_incl, tvb, (curr_offset*8)+(8-bit_offset), 1, ENC_NA);
 
             if (oct & bit_mask)
             {
@@ -5512,7 +5499,7 @@ elem_fwd_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
                 {
                     oct = tvb_get_guint8(tvb, curr_offset);
 
-                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, curr_offset*8, 1, ENC_NA);
+                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, (curr_offset*8)+7, 1, ENC_NA);
 
                     curr_offset++;
 
@@ -5550,7 +5537,7 @@ elem_fwd_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
 
                     oct = (value & 0x00ff);
 
-                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, curr_offset*8, 5, ENC_NA);
+                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, (curr_offset*8)+11, 5, ENC_NA);
 
                     curr_offset += 2;
 
@@ -5725,7 +5712,7 @@ elem_rev_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
                 {
                     oct = tvb_get_guint8(tvb, curr_offset);
 
-                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, curr_offset*8, 1, ENC_NA);
+                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, (curr_offset*8)+7, 1, ENC_NA);
 
                     curr_offset++;
 
@@ -5764,7 +5751,7 @@ elem_rev_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
 
                     oct = (value & 0x00ff);
 
-                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, curr_offset*8, 5, ENC_NA);
+                    proto_tree_add_bits_item(subtree, hf_ansi_a_msb_first_digit, tvb, (curr_offset*8)+11, 5, ENC_NA);
 
                     curr_offset += 2;
 

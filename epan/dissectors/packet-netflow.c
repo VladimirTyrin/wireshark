@@ -141,15 +141,9 @@ void proto_register_netflow(void);
 void proto_reg_handoff_netflow(void);
 
 #if 0
-#define ipfix_debug0(str) g_warning(str)
-#define ipfix_debug1(str,p1) g_warning(str,p1)
-#define ipfix_debug2(str,p1,p2) g_warning(str,p1,p2)
-#define ipfix_debug3(str,p1,p2,p3) g_warning(str,p1,p2,p3)
+#define ipfix_debug(...) g_warning(__VA_ARGS__)
 #else
-#define ipfix_debug0(str)
-#define ipfix_debug1(str,p1)
-#define ipfix_debug2(str,p1,p2)
-#define ipfix_debug3(str,p1,p2,p3)
+#define ipfix_debug(...)
 #endif
 
 
@@ -2313,11 +2307,11 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     dissect_pdu_t  *pduptr;
     guint32         flows_seen = 0;
 
-    ipfix_debug0("dissect_netflow: start");
+    ipfix_debug("dissect_netflow: start");
 
     ver = tvb_get_ntohs(tvb, offset);
 
-    ipfix_debug1("dissect_netflow: found version %d", ver);
+    ipfix_debug("dissect_netflow: found version %d", ver);
 
     switch (ver) {
     case 1:
@@ -2351,13 +2345,13 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "CFLOW");
     col_clear(pinfo->cinfo, COL_INFO);
-    ipfix_debug0("dissect_netflow: column cleared");
+    ipfix_debug("dissect_netflow: column cleared");
 
     if (tree) {
         ti = proto_tree_add_item(tree, proto_netflow, tvb, offset, -1, ENC_NA);
         netflow_tree = proto_item_add_subtree(ti, ett_netflow);
     }
-    ipfix_debug0("dissect_netflow: tree added");
+    ipfix_debug("dissect_netflow: tree added");
 
     hdrinfo.vspec = ver;
     hdrinfo.src_id = 0;
@@ -2411,7 +2405,7 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
         nstime_t nsuptime;
 
         nsuptime.secs = sysuptime / 1000;
-        nsuptime.nsecs = sysuptime * 1000;
+        nsuptime.nsecs = (sysuptime % 1000) * 1000000;
         proto_tree_add_time(netflow_tree, hf_cflow_sysuptime, tvb,
                             offset, 4, &nsuptime);
         offset += 4;
@@ -7307,9 +7301,9 @@ dissect_v9_v10_data_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdut
 /* Note: address at *(pinfo->net_???.data) is *not* copied */
 static v9_v10_tmplt_t *v9_v10_tmplt_build_key(v9_v10_tmplt_t *tmplt_p, packet_info *pinfo, guint32 src_id, guint16 tmplt_id)
 {
-    SET_ADDRESS(&tmplt_p->src_addr, pinfo->net_src.type, pinfo->net_src.len, pinfo->net_src.data); /* lookup only! */
+    set_address(&tmplt_p->src_addr, pinfo->net_src.type, pinfo->net_src.len, pinfo->net_src.data); /* lookup only! */
     tmplt_p->src_port  = pinfo->srcport;
-    SET_ADDRESS(&tmplt_p->dst_addr, pinfo->net_dst.type, pinfo->net_dst.len, pinfo->net_dst.data); /* lookup only! */
+    set_address(&tmplt_p->dst_addr, pinfo->net_dst.type, pinfo->net_dst.len, pinfo->net_dst.data); /* lookup only! */
     tmplt_p->dst_port  = pinfo->destport;
     tmplt_p->src_id    = src_id;
     tmplt_p->tmplt_id  = tmplt_id;
@@ -7323,9 +7317,9 @@ v9_v10_tmplt_table_equal(gconstpointer k1, gconstpointer k2)
     const v9_v10_tmplt_t *tb = (const v9_v10_tmplt_t *)k2;
 
     return (
-        (CMP_ADDRESS(&ta->src_addr, &tb->src_addr) == 0) &&
+        (cmp_address(&ta->src_addr, &tb->src_addr) == 0) &&
         (ta->src_port == tb->src_port)                   &&
-        (CMP_ADDRESS(&ta->dst_addr, &tb->dst_addr) == 0) &&
+        (cmp_address(&ta->dst_addr, &tb->dst_addr) == 0) &&
         (ta->dst_port == tb->dst_port)                   &&
         (ta->src_id   == tb->src_id)                     &&
         (ta->tmplt_id == tb->tmplt_id)
@@ -7340,8 +7334,8 @@ v9_v10_tmplt_table_hash(gconstpointer k)
 
     val = tmplt_p->src_id + (tmplt_p->tmplt_id << 9) + tmplt_p->src_port + tmplt_p->dst_port;
 
-    ADD_ADDRESS_TO_HASH(val, &tmplt_p->src_addr);
-    ADD_ADDRESS_TO_HASH(val, &tmplt_p->dst_addr);
+    add_address_to_hash(val, &tmplt_p->src_addr);
+    add_address_to_hash(val, &tmplt_p->dst_addr);
 
     return val;
 }
@@ -7447,7 +7441,7 @@ getprefix(const guint32 *addr, int prefix)
 
     gprefix = *addr & g_htonl((0xffffffff << (32 - prefix)));
 
-    SET_ADDRESS(&prefix_addr, AT_IPv4, 4, &gprefix);
+    set_address(&prefix_addr, AT_IPv4, 4, &gprefix);
     return address_to_str(wmem_packet_scope(), &prefix_addr);
 }
 

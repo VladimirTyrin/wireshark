@@ -27,7 +27,7 @@
 #include "epan/epan_dissect.h"
 
 #include "ui/decode_as_utils.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "qt_ui_utils.h"
 #include "wireshark_application.h"
@@ -51,7 +51,7 @@ const int default_col_  = 3; // aka "initial"
 const int proto_col_    = 4; // aka "current"
 
 const char *default_table_ = "TCP port";
-const char *default_proto_ = "HTTP";
+const char *default_proto_ = DECODE_AS_NONE;
 const char *default_int_selector_ = "0"; // Arbitrary
 const char *default_str_selector_ = "foo"; // Arbitrary
 
@@ -62,12 +62,20 @@ typedef struct _dissector_info_t {
 
 Q_DECLARE_METATYPE(dissector_info_t *)
 
+typedef struct _table_item_t {
+    const gchar* proto_name;
+    guint8       curr_layer_num;
+} table_item_t;
+
+Q_DECLARE_METATYPE(table_item_t)
+
 DecodeAsDialog::DecodeAsDialog(QWidget *parent, capture_file *cf, bool create_new) :
     QDialog(parent),
     ui(new Ui::DecodeAsDialog),
     cap_file_(cf),
     table_names_combo_box_(NULL),
-    selector_combo_box_(NULL)
+    selector_combo_box_(NULL),
+    cur_proto_combo_box_(NULL)
 {
     ui->setupUi(this);
     setWindowTitle(wsApp->windowTitleString(tr("Decode As" UTF8_HORIZONTAL_ELLIPSIS)));
@@ -220,6 +228,7 @@ void DecodeAsDialog::on_decodeAsTreeWidget_itemActivated(QTreeWidgetItem *item, 
     if (cap_file_ && cap_file_->edt) {
         bool copying = !current_text.isEmpty();
         wmem_list_frame_t * protos = wmem_list_head(cap_file_->edt->pi.layers);
+        guint8 curr_layer_num = 1;
         while (protos != NULL) {
             int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(protos));
             const gchar * proto_name = proto_get_protocol_filter_name(proto_id);
@@ -227,7 +236,10 @@ void DecodeAsDialog::on_decodeAsTreeWidget_itemActivated(QTreeWidgetItem *item, 
                 decode_as_t *entry = (decode_as_t *) cur->data;
                 if (g_strcmp0(proto_name, entry->name) == 0) {
                     QString table_ui_name = get_dissector_table_ui_name(entry->table_name);
-                    table_names_combo_box_->insertItem(0, table_ui_name, entry->table_name);
+                    table_item_t table_item;
+                    table_item.proto_name = proto_name;
+                    table_item.curr_layer_num = curr_layer_num;
+                    table_names_combo_box_->insertItem(0, table_ui_name, QVariant::fromValue<table_item_t>(table_item));
                     da_set.remove(table_ui_name);
                     if (!copying) {
                         current_text = table_ui_name;
@@ -235,6 +247,7 @@ void DecodeAsDialog::on_decodeAsTreeWidget_itemActivated(QTreeWidgetItem *item, 
                 }
             }
             protos = wmem_list_frame_next(protos);
+            curr_layer_num++;
         }
     }
 
@@ -256,7 +269,6 @@ void DecodeAsDialog::on_decodeAsTreeWidget_itemActivated(QTreeWidgetItem *item, 
     selector_combo_box_->setEditable(true);
     selector_combo_box_->lineEdit()->setText(item->text(selector_col_));
 
-    connect(selector_combo_box_, SIGNAL(destroyed()), this, SLOT(selectorDestroyed()));
     connect(selector_combo_box_, SIGNAL(editTextChanged(QString)), this, SLOT(selectorEditTextChanged(QString)));
 
     ui->decodeAsTreeWidget->setItemWidget(item, selector_col_, selector_combo_box_);
@@ -266,14 +278,12 @@ void DecodeAsDialog::on_decodeAsTreeWidget_itemActivated(QTreeWidgetItem *item, 
     ui->decodeAsTreeWidget->setItemWidget(item, proto_col_, cur_proto_combo_box_);
     connect(cur_proto_combo_box_, SIGNAL(currentIndexChanged(const QString &)),
             this, SLOT(curProtoCurrentIndexChanged(const QString &)));
-    connect(cur_proto_combo_box_, SIGNAL(destroyed()), this, SLOT(curProtoDestroyed()));
 
     table_names_combo_box_->setCurrentIndex(table_names_combo_box_->findText(current_text));
     tableNamesCurrentIndexChanged(current_text);
 
     connect(table_names_combo_box_, SIGNAL(currentIndexChanged(const QString &)),
             this, SLOT(tableNamesCurrentIndexChanged(const QString &)));
-    connect(table_names_combo_box_, SIGNAL(destroyed()), this, SLOT(tableNamesDestroyed()));
     table_names_combo_box_->setFocus();
 }
 
@@ -394,11 +404,6 @@ void DecodeAsDialog::on_copyToolButton_clicked()
     addRecord(true);
 }
 
-void DecodeAsDialog::tableNamesDestroyed()
-{
-    table_names_combo_box_ = NULL;
-}
-
 void DecodeAsDialog::decodeAddProtocol(const gchar *, const gchar *proto_name, gpointer value, gpointer user_data)
 {
     QSet<dissector_info_t *> *dissector_info_set = (QSet<dissector_info_t *> *)user_data;
@@ -424,12 +429,25 @@ void DecodeAsDialog::tableNamesCurrentIndexChanged(const QString &text)
 
     selector_combo_box_->clear();
 
+    bool edt_present = cap_file_ && cap_file_->edt;
+    QVariant variant = table_names_combo_box_->itemData(table_names_combo_box_->currentIndex());
+    gint8 curr_layer_num_saved = edt_present ? cap_file_->edt->pi.curr_layer_num : 0;
+    const gchar *proto_name = NULL;
+    if (variant.canConvert<table_item_t>()) {
+        table_item_t table_item = variant.value<table_item_t>();
+        if (edt_present) {
+            cap_file_->edt->pi.curr_layer_num = table_item.curr_layer_num;
+        }
+        proto_name = table_item.proto_name;
+    }
+
     QSet<dissector_info_t *> dissector_info_set;
     GList *cur;
     for (cur = decode_as_list; cur; cur = cur->next) {
         decode_as_t *entry = (decode_as_t *) cur->data;
-        if (g_strcmp0(ui_name_to_name_[text], entry->table_name) == 0) {
-            if (cap_file_ && cap_file_->edt) {
+        if (((proto_name == NULL) || (g_strcmp0(proto_name, entry->name) == 0)) &&
+            (g_strcmp0(ui_name_to_name_[text], entry->table_name) == 0)) {
+            if (edt_present) {
                 for (uint ni = 0; ni < entry->num_items; ni++) {
                     if (entry->values[ni].num_values == 1) { // Skip over multi-value ("both") entries
                         selector_combo_box_->addItem(entryString(entry->table_name,
@@ -440,6 +458,9 @@ void DecodeAsDialog::tableNamesCurrentIndexChanged(const QString &text)
             }
             entry->populate_list(entry->table_name, decodeAddProtocol, &dissector_info_set);
         }
+    }
+    if (edt_present) {
+        cap_file_->edt->pi.curr_layer_num = curr_layer_num_saved;
     }
     if (selector_combo_box_->count() > 0) {
         selector_combo_box_->setCurrentIndex(0);
@@ -465,11 +486,6 @@ void DecodeAsDialog::tableNamesCurrentIndexChanged(const QString &text)
 
     cur_proto_combo_box_->model()->sort(0);
     cur_proto_combo_box_->setCurrentIndex(cur_proto_combo_box_->findText(current_text));
-}
-
-void DecodeAsDialog::selectorDestroyed()
-{
-    selector_combo_box_ = NULL;
 }
 
 void DecodeAsDialog::selectorEditTextChanged(const QString &text)
@@ -503,11 +519,6 @@ void DecodeAsDialog::curProtoCurrentIndexChanged(const QString &text)
     if (!item) return;
     item->setText(proto_col_, text);
     item->setData(proto_col_, Qt::UserRole, cur_proto_combo_box_->itemData(cur_proto_combo_box_->findText(text)));
-}
-
-void DecodeAsDialog::curProtoDestroyed()
-{
-    cur_proto_combo_box_ = NULL;
 }
 
 typedef QPair<const char *, guint32> UintPair;
@@ -583,7 +594,7 @@ void DecodeAsDialog::applyChanges()
                 case FT_UINT16:
                 case FT_UINT24:
                 case FT_UINT32:
-                    selector_value = GUINT_TO_POINTER(item->text(selector_col_).toUInt());
+                    selector_value = GUINT_TO_POINTER(item->text(selector_col_).toUInt(0, 0));
                     break;
                 case FT_STRING:
                 case FT_STRINGZ:
@@ -596,7 +607,7 @@ void DecodeAsDialog::applyChanges()
                     continue;
                 }
 
-                if (item->text(proto_col_) == "(none)" || !dissector_info->dissector_handle) {
+                if (item->text(proto_col_) == DECODE_AS_NONE || !dissector_info->dissector_handle) {
                     decode_as_entry->reset_value(decode_as_entry->table_name, selector_value);
                     break;
                 } else {

@@ -1153,7 +1153,7 @@ bluetooth_add_address(packet_info *pinfo, address *addr, guint32 stream_number,
         return;
     }
 
-    SET_ADDRESS(&null_addr, AT_NONE, 0, NULL);
+    set_address(&null_addr, AT_NONE, 0, NULL);
 
     /*
      * Check if the ip address and port combination is not
@@ -1242,7 +1242,7 @@ srtp_add_address(packet_info *pinfo, address *addr, int port, int other_port,
             other_port, setup_method, setup_frame_number));
     DINDENT();
 
-    SET_ADDRESS(&null_addr, AT_NONE, 0, NULL);
+    set_address(&null_addr, AT_NONE, 0, NULL);
 
     /*
      * Check if the ip address and port combination is not
@@ -1608,27 +1608,25 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             /*
              * Check to see if there were any complete fragments within the chunk
              */
-            if( pinfo->desegment_len && pinfo->desegment_offset == 0 )
+            if( pinfo->desegment_len )
             {
+                if (pinfo->desegment_offset == 0) {
 #ifdef DEBUG_FRAGMENTS
-                g_debug("\tNo complete pdus in payload" );
+                    g_debug("\tNo complete pdus in payload" );
 #endif
-                /* Mark the fragments and not complete yet */
-                fragment_set_partial_reassembly(&rtp_reassembly_table,
-                                pinfo, fid, NULL);
+                    /* Mark the fragments as not complete yet */
+                    fragment_set_partial_reassembly(&rtp_reassembly_table,
+                                    pinfo, fid, NULL);
 
-                /* we must need another segment */
-                msp->endseq = MIN(msp->endseq, seqno) + 1;
-            }
-            else
-            {
-                if(pinfo->desegment_len)
-                {
-                    /* the higher-level dissector has asked for some more data - ie,
-                       the end of this segment does not coincide with the end of a
-                       higher-level PDU. */
-                    must_desegment = TRUE;
+                    /* we must need another segment */
+                    msp->endseq = MIN(msp->endseq, seqno) + 1;
+
                 }
+
+                /* the higher-level dissector has asked for some more data - ie,
+                   the end of this segment does not coincide with the end of a
+                   higher-level PDU. */
+                must_desegment = TRUE;
             }
 
         }
@@ -1674,10 +1672,12 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             deseg_offset);
 #endif
         /* allocate a new msp for this pdu */
-        msp = wmem_new(wmem_file_scope(), rtp_multisegment_pdu);
-        msp->startseq = seqno;
-        msp->endseq = seqno+1;
-        wmem_tree_insert32(finfo->multisegment_pdus, seqno, msp);
+        if (!PINFO_FD_VISITED(pinfo)) {
+            msp = wmem_new(wmem_file_scope(), rtp_multisegment_pdu);
+            msp->startseq = seqno;
+            msp->endseq = seqno+1;
+            wmem_tree_insert32(finfo->multisegment_pdus, seqno, msp);
+        }
 
         /*
          * Add the fragment to the fragment table
@@ -1699,7 +1699,7 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 g_debug("\tReassembled in %d", fd_head->reassembled_in);
 #endif
             }
-            else
+            else if (fd_head->reassembled_in == 0)
             {
 #ifdef DEBUG_FRAGMENTS
                 g_debug("\tUnfinished fragment");

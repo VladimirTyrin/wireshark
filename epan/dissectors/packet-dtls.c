@@ -147,7 +147,7 @@ static FILE               *dtls_keylog_file          = NULL;
 static uat_t *dtlsdecrypt_uat      = NULL;
 static const gchar *dtls_keys_list = NULL;
 static ssl_common_options_t dtls_options = { NULL, NULL};
-#ifdef HAVE_LIBGNUTLS
+#ifdef HAVE_LIBGCRYPT
 static const gchar *dtls_debug_file_name = NULL;
 #endif
 
@@ -215,7 +215,6 @@ dtls_parse_uat(void)
 
   if (dtls_key_hash)
   {
-      g_hash_table_foreach(dtls_key_hash, ssl_private_key_free, NULL);
       g_hash_table_destroy(dtls_key_hash);
   }
 
@@ -228,7 +227,8 @@ dtls_parse_uat(void)
   wmem_destroy_stack(tmp_stack);
 
   /* parse private keys string, load available keys and put them in key hash*/
-  dtls_key_hash = g_hash_table_new(ssl_private_key_hash, ssl_private_key_equal);
+  dtls_key_hash = g_hash_table_new_full(ssl_private_key_hash,
+      ssl_private_key_equal, g_free, ssl_private_key_free);
 
   ssl_set_debug(dtls_debug_file_name);
 
@@ -345,10 +345,6 @@ dissect_dtls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   SslDecryptSession *ssl_session;
   SslSession        *session;
   gint               is_from_server;
-  gboolean           conv_first_seen;
-#if defined(HAVE_LIBGNUTLS) && defined(HAVE_LIBGCRYPT)
-  Ssl_private_key_t *private_key;
-#endif
 
   ti                    = NULL;
   dtls_tree             = NULL;
@@ -368,40 +364,7 @@ dissect_dtls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    *       in addition to conv_version
    */
   conversation = find_or_create_conversation(pinfo);
-  conv_first_seen = conversation_get_proto_data(conversation, proto_dtls) == NULL;
   ssl_session = ssl_get_session(conversation, dtls_handle);
-  if (conv_first_seen) {
-    SslService dummy;
-
-    /* we need to know witch side of conversation is speaking */
-    /* XXX: remove this? it looks like a historical leftover since the initial
-     * commit. Since 0f05597ab17ea7fc5161458c670f56a523cb9c42,
-     * ssl_find_private_key is called so this is not needed */
-    if (ssl_packet_from_server(&ssl_session->session, dtls_associations, pinfo)) {
-      dummy.addr = pinfo->src;
-      dummy.port = pinfo->srcport;
-    }
-    else {
-      dummy.addr = pinfo->dst;
-      dummy.port = pinfo->destport;
-    }
-    ssl_debug_printf("dissect_dtls server %s:%d\n",
-                     address_to_str(wmem_packet_scope(), &dummy.addr),dummy.port);
-
-#if defined(HAVE_LIBGNUTLS) && defined(HAVE_LIBGCRYPT)
-    /* try to retrieve private key for this service. Do it now 'cause pinfo
-     * is not always available
-     * Note that with HAVE_LIBGNUTLS undefined private_key is always 0
-     * and thus decryption never engaged*/
-    private_key = (Ssl_private_key_t *)g_hash_table_lookup(dtls_key_hash, &dummy);
-    if (!private_key) {
-      ssl_debug_printf("dissect_dtls can't find private key for this server!\n");
-    }
-    else {
-      ssl_session->private_key = private_key->sexp_pkey;
-    }
-#endif
-  }
   session = &ssl_session->session;
   is_from_server = ssl_packet_from_server(session, dtls_associations, pinfo);
 
@@ -854,10 +817,10 @@ dissect_dtls_record(tvbuff_t *tvb, packet_info *pinfo,
       if (ssl&&decrypt_dtls_record(tvb, pinfo, offset,
                                    record_length, content_type, ssl, FALSE))
         ssl_add_record_info(proto_dtls, pinfo, dtls_decrypted_data.data,
-                            dtls_decrypted_data_avail, offset);
+                            dtls_decrypted_data_avail, tvb_raw_offset(tvb)+offset);
 
       /* try to retrieve and use decrypted alert record, if any. */
-      decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, offset);
+      decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, tvb_raw_offset(tvb)+offset);
       if (decrypted) {
         dissect_dtls_alert(decrypted, pinfo, dtls_record_tree, 0,
                            session);
@@ -882,10 +845,10 @@ dissect_dtls_record(tvbuff_t *tvb, packet_info *pinfo,
       if (ssl && decrypt_dtls_record(tvb, pinfo, offset,
                                      record_length, content_type, ssl, FALSE))
         ssl_add_record_info(proto_dtls, pinfo, dtls_decrypted_data.data,
-                            dtls_decrypted_data_avail, offset);
+                            dtls_decrypted_data_avail, tvb_raw_offset(tvb)+offset);
 
       /* try to retrieve and use decrypted handshake record, if any. */
-      decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, offset);
+      decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, tvb_raw_offset(tvb)+offset);
       if (decrypted) {
         dissect_dtls_handshake(decrypted, pinfo, dtls_record_tree, 0,
                                tvb_reported_length(decrypted), session, is_from_server,
@@ -987,10 +950,10 @@ dissect_dtls_record(tvbuff_t *tvb, packet_info *pinfo,
     if (ssl && decrypt_dtls_record(tvb, pinfo, offset,
                                    record_length, content_type, ssl, FALSE))
       ssl_add_record_info(proto_dtls, pinfo, dtls_decrypted_data.data,
-                          dtls_decrypted_data_avail, offset);
+                          dtls_decrypted_data_avail, tvb_raw_offset(tvb)+offset);
 
     /* try to retrieve and use decrypted alert record, if any. */
-    decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, offset);
+    decrypted = ssl_get_record_info(tvb, proto_dtls, pinfo, tvb_raw_offset(tvb)+offset);
     if (decrypted) {
       dissect_dtls_heartbeat(decrypted, pinfo, dtls_record_tree, 0,
                              session, tvb_reported_length (decrypted), TRUE);
@@ -1366,10 +1329,8 @@ dissect_dtls_handshake(tvbuff_t *tvb, packet_info *pinfo,
 
           case SSL_HND_CLIENT_HELLO:
             if (ssl) {
-                /* ClientHello is first packet so set direction and try to
-                 * find a private key matching the server port */
+                /* ClientHello is first packet so set direction */
                 ssl_set_server(session, &pinfo->dst, pinfo->ptype, pinfo->destport);
-                ssl_find_private_key(ssl, dtls_key_hash, dtls_associations, pinfo);
             }
             ssl_dissect_hnd_cli_hello(&dissect_dtls_hf, sub_tvb, pinfo,
                                       ssl_hand_tree, 0, length, session, ssl,
@@ -1394,7 +1355,8 @@ dissect_dtls_handshake(tvbuff_t *tvb, packet_info *pinfo,
             break;
 
           case SSL_HND_CERTIFICATE:
-            ssl_dissect_hnd_cert(&dissect_dtls_hf, sub_tvb, ssl_hand_tree, 0, pinfo, session, is_from_server);
+            ssl_dissect_hnd_cert(&dissect_dtls_hf, sub_tvb, ssl_hand_tree, 0,
+                pinfo, session, ssl, dtls_key_hash, is_from_server);
             break;
 
           case SSL_HND_SERVER_KEY_EXCHG:
@@ -1649,7 +1611,7 @@ looks_like_dtls(tvbuff_t *tvb, guint32 offset)
 
 /* UAT */
 
-#ifdef HAVE_LIBGNUTLS
+#if defined(HAVE_LIBGNUTLS) && defined(HAVE_LIBGCRYPT)
 static void
 dtlsdecrypt_free_cb(void* r)
 {
@@ -1671,7 +1633,7 @@ dtlsdecrypt_update_cb(void* r _U_, const char** err _U_)
 }
 #endif
 
-#ifdef HAVE_LIBGNUTLS
+#if defined(HAVE_LIBGNUTLS) && defined(HAVE_LIBGCRYPT)
 static void *
 dtlsdecrypt_copy_cb(void* dest, const void* orig, size_t len _U_)
 {
@@ -1905,10 +1867,11 @@ proto_register_dtls(void)
   expert_dtls = expert_register_protocol(proto_dtls);
   expert_register_field_array(expert_dtls, ei, array_length(ei));
 
-#ifdef HAVE_LIBGNUTLS
+#ifdef HAVE_LIBGCRYPT
   {
     module_t *dtls_module = prefs_register_protocol(proto_dtls, proto_reg_handoff_dtls);
 
+#ifdef HAVE_LIBGNUTLS
     static uat_field_t dtlskeylist_uats_flds[] = {
       UAT_FLD_CSTRING_OTHER(sslkeylist_uats, ipaddr, "IP address", ssldecrypt_uat_fld_ip_chk_cb, "IPv4 or IPv6 address"),
       UAT_FLD_CSTRING_OTHER(sslkeylist_uats, port, "Port", ssldecrypt_uat_fld_port_chk_cb, "Port Number"),
@@ -1936,6 +1899,7 @@ proto_register_dtls(void)
                                   "RSA keys list",
                                   "A table of RSA keys for DTLS decryption",
                                   dtlsdecrypt_uat);
+#endif /* HAVE_LIBGNUTLS */
 
     prefs_register_filename_preference(dtls_module, "debug_file", "DTLS debug file",
                                        "redirect dtls debug to file name; leave empty to disable debug, "

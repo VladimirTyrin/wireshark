@@ -38,6 +38,7 @@ set(NSIS_FILES
 	servicelib.nsh
 	AdditionalTasksPage.ini
 	WinPcapPage.ini
+	USBPcapPage.ini
 	${NSIS_GENERATED_FILES}
 	PARENT_SCOPE
 )
@@ -74,6 +75,8 @@ set(WIRESHARK_LIB_DIR "${_wireshark_lib_dir}")
 # Must match ${WIRESHARK_LIB_DIR}/WinPcap_X_Y_Z.exe
 set(WINPCAP_PACKAGE_VERSION 4_1_3)
 string(REPLACE "_" "." PCAP_DISPLAY_VERSION "${WINPCAP_PACKAGE_VERSION}")
+
+set(USBPCAP_DISPLAY_VERSION "1.1.0.0-g794bf26")
 
 set(PRODUCT_VERSION ${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION}.${PROJECT_BUILD_VERSION})
 # XXX Shouldn't this reflect the API / ABI version?
@@ -223,6 +226,7 @@ macro( ADD_NSIS_PACKAGE_TARGET )
 			${CMAKE_BINARY_DIR}/docbook/user-guide.chm
 			${DATAFILE_DIR}/uninstall.exe
 	)
+	set_target_properties(nsis_package_prep PROPERTIES FOLDER "Packaging")
 
 	# Dump the installer into ${CMAKE_CURRENT_SOURCE_DIR}/packaging/nsis to match
 	# the NMake environment for now.

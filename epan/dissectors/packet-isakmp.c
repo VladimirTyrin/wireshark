@@ -134,6 +134,8 @@ static int hf_isakmp_id_data_cert = -1;
 static int hf_isakmp_cert_encoding_v1 = -1;
 static int hf_isakmp_cert_encoding_v2 = -1;
 static int hf_isakmp_cert_data = -1;
+static int hf_isakmp_cert_x509_hash = -1;
+static int hf_isakmp_cert_x509_url = -1;
 static int hf_isakmp_certreq_type_v1 = -1;
 static int hf_isakmp_certreq_type_v2 = -1;
 static int hf_isakmp_certreq_authority_v1  = -1;
@@ -2843,7 +2845,7 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 
 #ifdef HAVE_LIBGCRYPT
   if (isakmp_version == 1) {
-    SET_ADDRESS(&null_addr, AT_NONE, 0, NULL);
+    set_address(&null_addr, AT_NONE, 0, NULL);
 
     tvb_memcpy(tvb, i_cookie, offset, COOKIE_SIZE);
     decr = (decrypt_data_t*) g_hash_table_lookup(isakmp_hash, i_cookie);
@@ -2853,12 +2855,12 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
       decr   = (decrypt_data_t *)g_slice_alloc(sizeof(decrypt_data_t));
       memcpy(ic_key, i_cookie, COOKIE_SIZE);
       memset(decr, 0, sizeof(decrypt_data_t));
-      SET_ADDRESS(&decr->initiator, AT_NONE, 0, NULL);
+      set_address(&decr->initiator, AT_NONE, 0, NULL);
 
       g_hash_table_insert(isakmp_hash, ic_key, decr);
     }
 
-    if (ADDRESSES_EQUAL(&decr->initiator, &null_addr)) {
+    if (addresses_equal(&decr->initiator, &null_addr)) {
       /* XXX - We assume that we're seeing the second packet in an exchange here.
        * Is there a way to verify this? */
       WMEM_COPY_ADDRESS(wmem_file_scope(), &decr->initiator, &pinfo->src);
@@ -3163,25 +3165,25 @@ dissect_rohc_supported(tvbuff_t *tvb, packet_info *pinfo, proto_tree *rohc_tree,
   guint optlen, rohc, len = 0;
   proto_item *rohc_item;
   proto_tree *sub_rohc_tree;
-  
+
   rohc = tvb_get_ntohs(tvb, offset);
   optlen = tvb_get_ntohs(tvb, offset+2);
   len = 2;
-  
+
   /* is TV ? (Type/Value) ? */
   if (rohc & 0x8000) {
     rohc = rohc & 0x7fff;
     len = 0;
     optlen = 2;
   }
-  
-  
+
+
   rohc_item = proto_tree_add_item(rohc_tree, hf_isakmp_notify_data_rohc_attr, tvb, offset, 2+len+optlen, ENC_NA);
   proto_item_append_text(rohc_item," (t=%d,l=%d) %s",rohc, optlen, val_to_str(rohc, rohc_attr_type, "Unknown Attribute Type (%02d)") );
   sub_rohc_tree = proto_item_add_subtree(rohc_item, ett_isakmp_rohc_attr);
   proto_tree_add_item(sub_rohc_tree, hf_isakmp_notify_data_rohc_attr_format, tvb, offset, 2, ENC_BIG_ENDIAN);
   proto_tree_add_uint(sub_rohc_tree, hf_isakmp_notify_data_rohc_attr_type, tvb, offset, 2, rohc);
-  
+
   offset += 2;
   if (len)
   {
@@ -3210,7 +3212,7 @@ dissect_rohc_supported(tvbuff_t *tvb, packet_info *pinfo, proto_tree *rohc_tree,
     case ROHC_MRRU:
       proto_tree_add_item(sub_rohc_tree, hf_isakmp_notify_data_rohc_attr_mrru, tvb, offset, optlen, ENC_BIG_ENDIAN);
       break;
-  
+
     default:
       /* No Default Action */
       break;
@@ -3241,7 +3243,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 2: {
       guint16 val;
       val = tvb_get_ntohs(tvb, offset);
-  
+
       proto_tree_add_uint_format_value(tree, hf_uint32, tvb, offset, len, val, "%u", val);
       proto_item_append_text(ti, " : %u", val);
       break;
@@ -3249,7 +3251,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 3: {
       guint32 val;
       val = tvb_get_ntoh24(tvb, offset);
-  
+
       proto_tree_add_uint_format_value(tree, hf_uint32, tvb, offset, len, val, "%u", val);
       proto_item_append_text(ti, " : %u", val);
       break;
@@ -3257,7 +3259,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 4: {
       guint32 val;
       val = tvb_get_ntohl(tvb, offset);
-  
+
       proto_tree_add_uint_format_value(tree, hf_uint32, tvb, offset, len, val, "%u", val);
       proto_item_append_text(ti, " : %u", val);
       break;
@@ -3265,7 +3267,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 5: {
       guint64 val;
       val = tvb_get_ntoh40(tvb, offset);
-  
+
       proto_tree_add_uint64_format_value(tree, hf_uint64, tvb, offset, len, val, "%" G_GINT64_MODIFIER "u", val);
       proto_item_append_text(ti, " : %" G_GINT64_MODIFIER "u", val);
       break;
@@ -3273,7 +3275,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 6: {
         guint64 val;
         val = tvb_get_ntoh48(tvb, offset);
-  
+
         proto_tree_add_uint64_format_value(tree, hf_uint64, tvb, offset, len, val, "%" G_GINT64_MODIFIER "u", val);
         proto_item_append_text(ti, " : %" G_GINT64_MODIFIER "u", val);
         break;
@@ -3281,7 +3283,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 7: {
       guint64 val;
       val = tvb_get_ntoh56(tvb, offset);
-  
+
       proto_tree_add_uint64_format_value(tree, hf_uint64, tvb, offset, len, val, "%" G_GINT64_MODIFIER "u", val);
       proto_item_append_text(ti, " : %" G_GINT64_MODIFIER "u", val);
       break;
@@ -3289,7 +3291,7 @@ dissect_life_duration(tvbuff_t *tvb, proto_tree *tree, proto_item *ti, int hf_ui
     case 8: {
       guint64 val;
       val = tvb_get_ntoh64(tvb, offset);
-  
+
       proto_tree_add_uint64_format_value(tree, hf_uint64, tvb, offset, len, val, "%" G_GINT64_MODIFIER "u", val);
       proto_item_append_text(ti, " : %" G_GINT64_MODIFIER "u", val);
       break;
@@ -3308,11 +3310,11 @@ dissect_transform_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *trans
   guint optlen, transform_attr_type, len = 0;
   proto_item *transform_attr_type_item;
   proto_tree *sub_transform_attr_type_tree;
-  
+
   transform_attr_type = tvb_get_ntohs(tvb, offset);
   optlen = tvb_get_ntohs(tvb, offset+2);
   len = 2;
-  
+
   /* is TV ? (Type/Value) ? */
   if (transform_attr_type & 0x8000) {
     transform_attr_type = transform_attr_type & 0x7fff;
@@ -3326,7 +3328,7 @@ dissect_transform_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *trans
   sub_transform_attr_type_tree = proto_item_add_subtree(transform_attr_type_item, ett_isakmp_tf_attr);
   proto_tree_add_item(sub_transform_attr_type_tree, hf_isakmp_tf_attr_format, tvb, offset, 2, ENC_BIG_ENDIAN);
   proto_tree_add_uint(sub_transform_attr_type_tree, hf_isakmp_tf_attr_type_v1, tvb, offset, 2, transform_attr_type);
-  
+
   offset += 2;
   if (len)
   {
@@ -3704,11 +3706,11 @@ dissect_key_exch(tvbuff_t *tvb, int offset, int length, proto_tree *tree, int is
   proto_tree_add_item(tree, hf_isakmp_key_exch_data, tvb, offset, length, ENC_NA);
 
 #ifdef HAVE_LIBGCRYPT
-  if (decr && decr->gi_len == 0 && ADDRESSES_EQUAL(&decr->initiator, &pinfo->src)) {
+  if (decr && decr->gi_len == 0 && addresses_equal(&decr->initiator, &pinfo->src)) {
     decr->gi = (gchar *)g_malloc(length);
     tvb_memcpy(tvb, decr->gi, offset, length);
     decr->gi_len = length;
-  } else if (decr && decr->gr_len == 0 && !ADDRESSES_EQUAL(&decr->initiator, &pinfo->src)) {
+  } else if (decr && decr->gr_len == 0 && !addresses_equal(&decr->initiator, &pinfo->src)) {
     decr->gr = (gchar *)g_malloc(length);
     tvb_memcpy(tvb, decr->gr, offset, length);
     decr->gr_len = length;
@@ -3815,10 +3817,12 @@ dissect_id(tvbuff_t *tvb, int offset, int length, proto_tree *tree, int isakmp_v
 }
 
 static void
-dissect_cert(tvbuff_t *tvb, int offset, int length _U_, proto_tree *tree, int isakmp_version, packet_info *pinfo )
+dissect_cert(tvbuff_t *tvb, int offset, int length, proto_tree *tree, int isakmp_version, packet_info *pinfo )
 {
+  guint8                cert_type;
   asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
+  cert_type = tvb_get_guint8(tvb, offset);
 
   if (isakmp_version == 1)
   {
@@ -3829,8 +3833,31 @@ dissect_cert(tvbuff_t *tvb, int offset, int length _U_, proto_tree *tree, int is
   }
 
   offset += 1;
+  length -= 1;
 
-  dissect_x509af_Certificate(FALSE, tvb, offset, &asn1_ctx, tree, hf_isakmp_cert_data);
+  if (isakmp_version == 1)
+  {
+    dissect_x509af_Certificate(FALSE, tvb, offset, &asn1_ctx, tree, hf_isakmp_cert_data);
+  }else if (isakmp_version == 2)
+  {
+    switch(cert_type){
+      case 12:{
+        proto_item *ti_url;
+
+        proto_tree_add_item(tree, hf_isakmp_cert_x509_hash, tvb, offset, 20, ENC_NA);
+        offset += 20;
+        length -= 20;
+
+        ti_url = proto_tree_add_item(tree, hf_isakmp_cert_x509_url, tvb, offset, length, ENC_ASCII|ENC_NA);
+        PROTO_ITEM_SET_URL(ti_url);
+        }
+        break;
+      default:
+        dissect_x509af_Certificate(FALSE, tvb, offset, &asn1_ctx, tree, hf_isakmp_cert_data);
+        break;
+    }
+  }
+
 }
 
 static void
@@ -4393,18 +4420,18 @@ dissect_config_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *cfg_attr
   int offset_end = 0;
   proto_item *cfg_attr_type_item = NULL;
   proto_tree *sub_cfg_attr_type_tree = NULL;
-  
+
   cfg_attr_type = tvb_get_ntohs(tvb, offset);
   optlen = tvb_get_ntohs(tvb, offset+2);
   len = 2;
-  
+
   /* No Length ? */
   if (cfg_attr_type & 0x8000) {
     cfg_attr_type = cfg_attr_type & 0x7fff;
     len = 0;
     optlen = 2;
   }
-  
+
   if (isakmp_version == 1) {
      cfg_attr_type_item = proto_tree_add_none_format(cfg_attr_type_tree, hf_isakmp_cfg_attr, tvb, offset, 2+len+optlen, "Attribute Type: (t=%d,l=%d) %s", cfg_attr_type, optlen, rval_to_str(cfg_attr_type,vs_v1_cfgattr,"Unknown Attribute Type (%02d)") );
      sub_cfg_attr_type_tree = proto_item_add_subtree(cfg_attr_type_item, ett_isakmp_cfg_attr);
@@ -4433,7 +4460,7 @@ dissect_config_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *cfg_attr
   switch (cfg_attr_type) {
     case INTERNAL_IP4_ADDRESS: /* 1 */
       offset_end = offset + optlen;
-  
+
       if (optlen%4 == 0)
       {
         while (offset_end-offset > 0)
@@ -4448,7 +4475,7 @@ dissect_config_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *cfg_attr
       break;
     case INTERNAL_IP4_DNS: /* 3 */
       offset_end = offset + optlen;
-  
+
       if (optlen%4 == 0)
       {
         while (offset_end-offset > 0)
@@ -5570,6 +5597,14 @@ proto_register_isakmp(void)
       { "Certificate Data", "isakmp.cert.data",
         FT_NONE, BASE_NONE, NULL, 0x0,
         "ISAKMP Certificate Data", HFILL }},
+    { &hf_isakmp_cert_x509_hash,
+      { "Hash", "isakmp.cert.x509.hash",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+    { &hf_isakmp_cert_x509_url,
+      { "URL", "isakmp.cert.x509.url",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
     { &hf_isakmp_certreq_type_v1,
       { "Certificate Type", "isakmp.certreq.type",
         FT_UINT8, BASE_RANGE_STRING | BASE_DEC, RVALS(cert_v1_type), 0x0,
@@ -6279,7 +6314,7 @@ proto_register_isakmp(void)
         "An IPv4 address on the internal network", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_netmask,
       { "INTERNAL IP4 NETMASK", "isakmp.cfg.attr.internal_ip4_netmask",
-        FT_IPv4, BASE_NONE, NULL, 0x00,
+        FT_IPv4, BASE_NETMASK, NULL, 0x00,
         "The internal network's netmask", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_dns,
       { "INTERNAL IP4 DNS", "isakmp.cfg.attr.internal_ip4_dns",
@@ -6331,7 +6366,7 @@ proto_register_isakmp(void)
         "The protected sub-networks that this edge-device protects (IP)", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_subnet_netmask,
       { "INTERNAL IP4 SUBNET (NETMASK)", "isakmp.cfg.attr.internal_ip4_subnet_netmask",
-        FT_IPv4, BASE_NONE, NULL, 0x00,
+        FT_IPv4, BASE_NETMASK, NULL, 0x00,
         "The protected sub-networks that this edge-device protects (IP)", HFILL }},
     { &hf_isakmp_cfg_attr_supported_attributes,
       { "SUPPORTED ATTRIBUTES", "isakmp.cfg.attr.supported_attributes",

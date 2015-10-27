@@ -420,7 +420,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  dissector_dump_decodes@Base 1.9.1
  dissector_dump_dissector_tables@Base 1.99.1
  dissector_dump_heur_decodes@Base 1.9.1
- dissector_filter_list@Base 1.9.1
  dissector_get_custom_table_handle@Base 1.99.8
  dissector_get_default_string_handle@Base 1.12.0~rc1
  dissector_get_default_uint_handle@Base 1.12.0~rc1
@@ -512,6 +511,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  expert_checksum_vals@Base 1.12.0~rc1
  expert_deregister_protocol@Base 1.99.9
  expert_get_highest_severity@Base 1.9.1
+ expert_get_summary@Base 1.99.10
  expert_group_vals@Base 1.12.0~rc1
  expert_register_field_array@Base 1.12.0~rc1
  expert_register_protocol@Base 1.12.0~rc1
@@ -573,6 +573,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  frame_data_set_after_dissect@Base 1.9.1
  frame_data_set_before_dissect@Base 1.9.1
  free_frame_data_sequence@Base 1.12.0~rc1
+ free_key_string@Base 2.0.0~rc1
  free_rtd_table@Base 1.99.8
  free_srt_table@Base 1.99.8
  free_srt_table_data@Base 1.99.8
@@ -843,7 +844,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  oid_subid2string@Base 1.9.1
  oids_cleanup@Base 1.9.1
  oids_init@Base 1.9.1
- other_decode_bitfield_value@Base 1.9.1
  output_fields_add@Base 1.12.0~rc1
  output_fields_free@Base 1.12.0~rc1
  output_fields_has_cols@Base 1.12.0~rc1
@@ -948,7 +948,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  proto_get_protocol_name@Base 1.9.1
  proto_get_protocol_short_name@Base 1.9.1
  proto_initialize_all_prefixes@Base 1.9.1
- proto_is_private@Base 1.9.1
  proto_is_protocol_enabled@Base 1.9.1
  proto_is_frame_protocol@Base 1.99.1
  proto_item_add_subtree@Base 1.9.1
@@ -963,7 +962,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  proto_item_set_end@Base 1.9.1
  proto_item_set_len@Base 1.9.1
  proto_item_set_text@Base 1.9.1
- proto_mark_private@Base 1.9.1
  proto_register_field_array@Base 1.9.1
  proto_register_fields_manual@Base 1.12.0~rc1
  proto_register_fields_section@Base 1.12.0~rc1
@@ -1047,7 +1045,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  proto_tree_add_string_format_value@Base 1.9.1
  proto_tree_add_subtree@Base 1.99.0
  proto_tree_add_subtree_format@Base 1.99.0
- proto_tree_add_text@Base 1.9.1
  proto_tree_add_time@Base 1.9.1
  proto_tree_add_time_format@Base 1.9.1
  proto_tree_add_time_format_value@Base 1.9.1
@@ -1117,7 +1114,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  register_custom_dissector_table@Base 1.99.8
  register_decode_as@Base 1.12.0~rc1
  register_dissector@Base 1.9.1
- register_dissector_filter@Base 1.9.1
  register_dissector_table@Base 1.9.1
  register_export_pdu_tap@Base 1.99.0
  register_final_registration_routine@Base 1.9.1

@@ -19,6 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+// warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4267)
+#endif
+
 #include "wireshark_application.h"
 
 #include <algorithm>
@@ -57,7 +63,7 @@
 #include "ui/software_update.h"
 #include "ui/last_open_dir.h"
 #include "ui/recent_utils.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #ifdef _WIN32
 #  include "ui/win32/console_win32.h"
@@ -79,6 +85,10 @@
 #ifdef Q_OS_WIN
 #include <QDebug>
 #include <QLibrary>
+#endif
+
+#ifdef _MSC_VER
+#pragma warning(pop)
 #endif
 
 WiresharkApplication *wsApp = NULL;
@@ -188,12 +198,15 @@ void WiresharkApplication::refreshRecentFiles(void) {
     recent_item_status *ri;
     RecentFileStatus *rf_status;
 
+    // We're in the middle of a capture. Don't create traffic.
+    if (active_captures_ > 0) return;
+
     foreach (ri, recent_items_) {
         if (ri->in_thread) {
             continue;
         }
 
-        rf_status = new RecentFileStatus(ri->filename);
+        rf_status = new RecentFileStatus(ri->filename, this);
 
         connect(rf_status, SIGNAL(statusFound(QString, qint64, bool)),
                 this, SLOT(itemStatusFinished(QString, qint64, bool)), Qt::QueuedConnection);
@@ -342,11 +355,11 @@ void WiresharkApplication::setConfigurationProfile(const gchar *profile_name)
 
     (void) readConfigurationFiles (&gdp_path, &dp_path);
 
-    recent_read_profile_static(&rf_path, &rf_open_errno);
-    if (rf_path != NULL && rf_open_errno != 0) {
+    if (!recent_read_profile_static(&rf_path, &rf_open_errno)) {
         simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
             "Could not open common recent file\n\"%s\": %s.",
             rf_path, g_strerror(rf_open_errno));
+        g_free(rf_path);
     }
     if (recent.gui_fileopen_remembered_dir &&
         test_for_directory(recent.gui_fileopen_remembered_dir) == EISDIR) {
@@ -478,16 +491,16 @@ void WiresharkApplication::itemStatusFinished(const QString filename, qint64 siz
 WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
     QApplication(argc, argv),
     initialized_(false),
-    is_reloading_lua_(false)
+    is_reloading_lua_(false),
+    if_notifier_(NULL),
+    active_captures_(0)
 {
     wsApp = this;
     setApplicationName("Wireshark");
 
     Q_INIT_RESOURCE(about);
-    Q_INIT_RESOURCE(display_filter);
     Q_INIT_RESOURCE(i18n);
     Q_INIT_RESOURCE(layout);
-    Q_INIT_RESOURCE(status);
     Q_INIT_RESOURCE(toolbar);
     Q_INIT_RESOURCE(wsicon);
     Q_INIT_RESOURCE(languages);
@@ -616,7 +629,7 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
 
     // Application-wide style sheet
     QString app_style_sheet = qApp->styleSheet();
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && QT_VERSION < QT_VERSION_CHECK(5, 6, 0)
     // Qt uses the HITheme API to draw splitters. In recent versions of OS X
     // this looks particularly bad: https://bugreports.qt.io/browse/QTBUG-43425
     // This doesn't look native but it looks better than Yosemite's bit-rotten
@@ -982,7 +995,7 @@ QList<recent_item_status *> WiresharkApplication::recentItems() const {
     return recent_items_;
 }
 
-void WiresharkApplication::addRecentItem(const QString &filename, qint64 size, bool accessible) {
+void WiresharkApplication::addRecentItem(const QString filename, qint64 size, bool accessible) {
     recent_item_status *ri = new(recent_item_status);
 
     ri->filename = filename;

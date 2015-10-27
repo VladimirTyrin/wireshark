@@ -50,7 +50,7 @@
 #include <epan/packet.h>
 #include <epan/to_str.h>
 #include <epan/expert.h>
-#include <epan/dissector_filters.h>
+#include <epan/color_dissector_filters.h>
 #include <epan/dissectors/packet-dcerpc.h>
 
 #include "packet-pn.h"
@@ -153,6 +153,7 @@ static int hf_pn_io_frame_data_properties_FastForwardingMulticastMACAdd = -1;
 static int hf_pn_io_frame_data_properties_FragmentMode = -1;
 static int hf_pn_io_frame_data_properties_reserved_1 = -1;
 static int hf_pn_io_frame_data_properties_reserved_2 = -1;
+static int hf_pn_io_watchdog_factor = -1;
 static int hf_pn_io_data_hold_factor = -1;
 static int hf_pn_io_iocr_tag_header = -1;
 static int hf_pn_io_iocr_multicast_mac_add = -1;
@@ -2675,8 +2676,8 @@ pnio_ar_info(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pnio_ar_t *ar)
         proto_tree *sub_tree;
         address   controllermac_addr, devicemac_addr;
 
-        SET_ADDRESS(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
-        SET_ADDRESS(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
+        set_address(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
+        set_address(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
 
         sub_tree = proto_tree_add_subtree_format(tree, tvb, 0, 0, ett_pn_io_ar_info, &sub_item,
             "ARUUID:%s ContrMAC:%s ContrAlRef:0x%x DevMAC:%s DevAlRef:0x%x InCR:0x%x OutCR=0x%x",
@@ -7176,7 +7177,7 @@ dissect_IOCRBlockReq_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint32(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_frame_send_offset, &u32FrameSendOffset);
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
-                        hf_pn_io_data_hold_factor, &u16WatchdogFactor);
+                        hf_pn_io_watchdog_factor, &u16WatchdogFactor);
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_data_hold_factor, &u16DataHoldFactor);
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
@@ -9670,7 +9671,7 @@ pn_io_ar_conv_valid(packet_info *pinfo)
     return ((profinet_type != NULL) && (GPOINTER_TO_UINT(profinet_type) == 10));
 }
 
-static const gchar *
+static gchar *
 pn_io_ar_conv_filter(packet_info *pinfo)
 {
     pnio_ar_t *ar = (pnio_ar_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_pn_io, 0);
@@ -9682,8 +9683,8 @@ pn_io_ar_conv_filter(packet_info *pinfo)
         return NULL;
     }
 
-    SET_ADDRESS(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
-    SET_ADDRESS(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
+    set_address(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
+    set_address(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
 
     guid_str = guid_to_str(wmem_packet_scope(), (const e_guid_t*) &ar->aruuid);
     buf = g_strdup_printf(
@@ -9697,7 +9698,7 @@ pn_io_ar_conv_filter(packet_info *pinfo)
     return buf;
 }
 
-static const gchar *
+static gchar *
 pn_io_ar_conv_data_filter(packet_info *pinfo)
 {
     pnio_ar_t *ar = (pnio_ar_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_pn_io, 0);
@@ -9709,8 +9710,8 @@ pn_io_ar_conv_data_filter(packet_info *pinfo)
         return NULL;
     }
 
-    SET_ADDRESS(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
-    SET_ADDRESS(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
+    set_address(&controllermac_addr, AT_ETHER, 6, ar->controllermac);
+    set_address(&devicemac_addr, AT_ETHER, 6, ar->devicemac);
 
     controllermac_str = address_to_str(wmem_packet_scope(), &controllermac_addr);
     devicemac_str = address_to_str(wmem_packet_scope(), &devicemac_addr);
@@ -10183,6 +10184,11 @@ proto_register_pn_io (void)
     { &hf_pn_io_frame_data_properties_reserved_2,
       { "Reserved_2", "pn_io.frame_data.reserved_2",
         FT_UINT32, BASE_HEX, NULL, 0xFFFF0000,
+        NULL, HFILL }
+    },
+    { &hf_pn_io_watchdog_factor,
+      { "WatchdogFactor", "pn_io.watchdog_factor",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
     { &hf_pn_io_data_hold_factor,
@@ -12254,8 +12260,8 @@ proto_register_pn_io (void)
 
     register_cleanup_routine(pnio_cleanup);
 
-    register_dissector_filter("PN-IO AR", pn_io_ar_conv_valid, pn_io_ar_conv_filter);
-    register_dissector_filter("PN-IO AR (with data)", pn_io_ar_conv_valid, pn_io_ar_conv_data_filter);
+    register_color_conversation_filter("pn_io", "PN-IO AR", pn_io_ar_conv_valid, pn_io_ar_conv_filter);
+    register_color_conversation_filter("pn_io", "PN-IO AR (with data)", pn_io_ar_conv_valid, pn_io_ar_conv_data_filter);
 }
 
 void

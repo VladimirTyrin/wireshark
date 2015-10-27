@@ -70,7 +70,7 @@
 #include "ui/last_open_dir.h"
 #include "ui/progress_dlg.h"
 #include "ui/simple_dialog.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/dlg_utils.h"
@@ -78,8 +78,8 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/main.h"
-#include "ui/rtp_analysis.h"
-#include "ui/gtk/iax2_analysis.h"
+#include "ui/tap-rtp-analysis.h"
+#include "ui/tap-iax2-analysis.h"
 #include "ui/rtp_stream.h"
 #include "ui/gtk/rtp_stream_dlg.h"
 #include "ui/gtk/old-gtk-compat.h"
@@ -458,9 +458,9 @@ iax2_packet(void *user_data_arg, packet_info *pinfo, epan_dissect_t *edt _U_, co
 		return FALSE;
 
 	/* is it the forward direction?  */
-	else if ((CMP_ADDRESS(&(user_data->ip_src_fwd), &(pinfo->net_src)) == 0)
+	else if ((cmp_address(&(user_data->ip_src_fwd), &(pinfo->net_src)) == 0)
 		 && (user_data->port_src_fwd == pinfo->srcport)
-		 && (CMP_ADDRESS(&(user_data->ip_dst_fwd), &(pinfo->net_dst)) == 0)
+		 && (cmp_address(&(user_data->ip_dst_fwd), &(pinfo->net_dst)) == 0)
 		 && (user_data->port_dst_fwd == pinfo->destport))  {
 		iax2_packet_analyse(&(user_data->forward.statinfo), pinfo, iax2info);
 		iax2_packet_add_graph(&(user_data->dlg.dialog_graph.graph[GRAPH_FWD_JITTER]),
@@ -477,9 +477,9 @@ iax2_packet(void *user_data_arg, packet_info *pinfo, epan_dissect_t *edt _U_, co
 					 &(user_data->forward.statinfo), pinfo, iax2info);
 	}
 	/* is it the reversed direction? */
-	else if (CMP_ADDRESS(&(user_data->ip_src_rev), &(pinfo->net_src)) == 0
+	else if (cmp_address(&(user_data->ip_src_rev), &(pinfo->net_src)) == 0
 		 && user_data->port_src_rev == pinfo->srcport
-		 && CMP_ADDRESS(&(user_data->ip_dst_rev), &(pinfo->net_dst)) == 0
+		 && cmp_address(&(user_data->ip_dst_rev), &(pinfo->net_dst)) == 0
 		 && user_data->port_dst_rev == pinfo->destport)  {
 		iax2_packet_analyse(&(user_data->reversed.statinfo), pinfo, iax2info);
 		iax2_packet_add_graph(&(user_data->dlg.dialog_graph.graph[GRAPH_REV_JITTER]),
@@ -497,99 +497,6 @@ iax2_packet(void *user_data_arg, packet_info *pinfo, epan_dissect_t *edt _U_, co
 	}
 
 	return FALSE;
-}
-
-/****************************************************************************/
-/* This comes from tap-rtp-common.c */
-/****************************************************************************/
-
-int iax2_packet_analyse(tap_iax2_stat_t *statinfo,
-			packet_info *pinfo,
-			const struct _iax2_info_t *iax2info)
-{
-	double current_time;
-	double current_jitter;
-	double current_diff;
-
-	statinfo->flags = 0;
-	/* check payload type */
-	if (iax2info->ftype == AST_FRAME_VOICE) {
-		if (iax2info->csub != statinfo->pt)
-			statinfo->flags |= STAT_FLAG_PT_CHANGE;
-		statinfo->pt = iax2info->csub;
-	}
-
-	/* store the current time and calculate the current jitter */
-	current_time = nstime_to_sec(&pinfo->rel_ts);
-	current_diff = fabs (current_time - statinfo->time - (((double)iax2info->timestamp - (double)statinfo->timestamp)/1000));
-	current_jitter = statinfo->jitter + ( current_diff - statinfo->jitter)/16;
-	statinfo->delta = current_time - (statinfo->time);
-	statinfo->jitter = current_jitter;
-	statinfo->diff = current_diff;
-
-	/* calculate the BW in Kbps adding the IP+IAX2 header to the RTP -> 20bytes(IP)+ 4bytes(Mini) = 24bytes */
-	statinfo->bw_history[statinfo->bw_index].bytes = iax2info->payload_len + 24;
-	statinfo->bw_history[statinfo->bw_index].time = current_time;
-	/* check if there are more than 1sec in the history buffer to calculate BW in bps. If so, remove those for the calculation */
-	while ((statinfo->bw_history[statinfo->bw_start_index].time+1) < current_time) {
-	 	statinfo->total_bytes -= statinfo->bw_history[statinfo->bw_start_index].bytes;
-		statinfo->bw_start_index++;
-		if (statinfo->bw_start_index == BUFF_BW) statinfo->bw_start_index = 0;
-	};
-	statinfo->total_bytes += iax2info->payload_len + 24;
-	statinfo->bandwidth = (double)(statinfo->total_bytes*8)/1000;
-	statinfo->bw_index++;
-	if (statinfo->bw_index == BUFF_BW) statinfo->bw_index = 0;
-
-
-	/*  is this the first packet we got in this direction? */
-	if (statinfo->first_packet) {
-		statinfo->start_seq_nr = 0;
-		statinfo->start_time = current_time;
-		statinfo->delta = 0;
-		statinfo->jitter = 0;
-		statinfo->diff = 0;
-		statinfo->flags |= STAT_FLAG_FIRST;
-		statinfo->first_packet = FALSE;
-	}
-	/* is it a regular packet? */
-	if (!(statinfo->flags & STAT_FLAG_FIRST)
-		&& !(statinfo->flags & STAT_FLAG_MARKER)
-		&& !(statinfo->flags & STAT_FLAG_PT_CN)
-		&& !(statinfo->flags & STAT_FLAG_WRONG_TIMESTAMP)
-		&& !(statinfo->flags & STAT_FLAG_FOLLOW_PT_CN)) {
-		/* include it in maximum delta calculation */
-		if (statinfo->delta > statinfo->max_delta) {
-			statinfo->max_delta = statinfo->delta;
-			statinfo->max_nr = pinfo->fd->num;
-		}
-		/* maximum and mean jitter calculation */
-		if (statinfo->jitter > statinfo->max_jitter) {
-			statinfo->max_jitter = statinfo->jitter;
-		}
-		statinfo->mean_jitter = (statinfo->mean_jitter*statinfo->total_nr + current_diff) / (statinfo->total_nr+1);
-	}
-	/* regular payload change? (CN ignored) */
-	if (!(statinfo->flags & STAT_FLAG_FIRST)
-		&& !(statinfo->flags & STAT_FLAG_PT_CN)) {
-		if ((statinfo->pt != statinfo->reg_pt)
-			&& (statinfo->reg_pt != PT_UNDEFINED)) {
-			statinfo->flags |= STAT_FLAG_REG_PT_CHANGE;
-		}
-	}
-
-	/* set regular payload*/
-	if (!(statinfo->flags & STAT_FLAG_PT_CN)) {
-		statinfo->reg_pt = statinfo->pt;
-	}
-
-	/* TODO: lost packets / duplicated:  we should infer this from timestamp... */
-	statinfo->time = current_time;
-	statinfo->timestamp = iax2info->timestamp; /* millisecs */
-	statinfo->stop_seq_nr = 0;
-	statinfo->total_nr++;
-
-	return 0;
 }
 
 
@@ -3575,7 +3482,7 @@ get_int_value_from_proto_tree(proto_tree *protocol_tree,
 #endif
 
 /****************************************************************************/
-void
+static void
 iax2_analysis(
 	address *ip_src_fwd,
 	guint16 port_src_fwd,
@@ -3608,13 +3515,13 @@ iax2_analysis(
 	/* init */
 	user_data = (user_data_t *)g_malloc(sizeof(user_data_t));
 
-	COPY_ADDRESS(&(user_data->ip_src_fwd), ip_src_fwd);
+	copy_address(&(user_data->ip_src_fwd), ip_src_fwd);
 	user_data->port_src_fwd = port_src_fwd;
-	COPY_ADDRESS(&(user_data->ip_dst_fwd), ip_dst_fwd);
+	copy_address(&(user_data->ip_dst_fwd), ip_dst_fwd);
 	user_data->port_dst_fwd = port_dst_fwd;
-	COPY_ADDRESS(&(user_data->ip_src_rev), ip_src_rev);
+	copy_address(&(user_data->ip_src_rev), ip_src_rev);
 	user_data->port_src_rev = port_src_rev;
-	COPY_ADDRESS(&(user_data->ip_dst_rev), ip_dst_rev);
+	copy_address(&(user_data->ip_dst_rev), ip_dst_rev);
 	user_data->port_dst_rev = port_dst_rev;
 
 
@@ -3701,7 +3608,7 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	guint16 port_dst_rev;
 	/* unsigned int ptype; */
 
-	gchar	      filter_text[256];
+	const gchar  *filter_text = "iax2 && (ip || ipv6)";
 	dfilter_t    *sfcode;
 	gchar        *err_msg;
 	capture_file *cf;
@@ -3713,7 +3620,6 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	rtp_stream_info_t *strinfo;
 
 	/* Try to compile the filter. */
-	g_strlcpy(filter_text,"iax2 && (ip || ipv6)",256);
 	if (!dfilter_compile(filter_text, &sfcode, &err_msg)) {
 		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", err_msg);
 		g_free(err_msg);
@@ -3751,22 +3657,15 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	}
 #endif
 
-	/* check if it is part of a Call */
-	if (edt.pi.circuit_id == 0) {
-		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-		    "Please select a Call packet.");
-		return;
-	}
-
 	/* ok, it is a IAX2 frame, so let's get the ip and port values */
-	COPY_ADDRESS(&(ip_src_fwd), &(edt.pi.src));
-	COPY_ADDRESS(&(ip_dst_fwd), &(edt.pi.dst));
+	copy_address(&(ip_src_fwd), &(edt.pi.src));
+	copy_address(&(ip_dst_fwd), &(edt.pi.dst));
 	port_src_fwd = edt.pi.srcport;
 	port_dst_fwd = edt.pi.destport;
 
 	/* assume the inverse ip/port combination for the reverse direction */
-	COPY_ADDRESS(&(ip_src_rev), &(edt.pi.dst));
-	COPY_ADDRESS(&(ip_dst_rev), &(edt.pi.src));
+	copy_address(&(ip_src_rev), &(edt.pi.dst));
+	copy_address(&(ip_dst_rev), &(edt.pi.src));
 	port_src_rev = edt.pi.destport;
 	port_dst_rev = edt.pi.srcport;
 
@@ -3778,17 +3677,17 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	while (strinfo_list)
 	{
 		strinfo = (rtp_stream_info_t*)(strinfo_list->data);
-		if (ADDRESSES_EQUAL(&(strinfo->src_addr),&(ip_src_fwd))
+		if (addresses_equal(&(strinfo->src_addr),&(ip_src_fwd))
 			&& strinfo->src_port == port_src_fwd
-			&& ADDRESSES_EQUAL(&(strinfo->dest_addr),&(ip_dst_fwd))
+			&& addresses_equal(&(strinfo->dest_addr),&(ip_dst_fwd))
 			&& strinfo->dest_port == port_dst_fwd)
 		{
 			filtered_list = g_list_prepend(filtered_list, strinfo);
 		}
 
-		if (ADDRESSES_EQUAL(&(strinfo->src_addr),&(ip_src_rev))
+		if (addresses_equal(&(strinfo->src_addr),&(ip_src_rev))
 			&& strinfo->src_port == port_src_rev
-			&& ADDRESSES_EQUAL(&(strinfo->dest_addr),&(ip_dst_rev))
+			&& addresses_equal(&(strinfo->dest_addr),&(ip_dst_rev))
 			&& strinfo->dest_port == port_dst_rev)
 		{
 			++nfound;

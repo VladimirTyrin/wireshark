@@ -66,7 +66,7 @@ public:
     void clear();
     void writeRecent(FILE *rf);
     bool contextMenuActive();
-    const QString &getFilterFromRowAndColumn();
+    QString getFilterFromRowAndColumn();
     void resetColorized();
     QString packetComment();
     void setPacketComment(QString new_comment);
@@ -74,6 +74,7 @@ public:
     void recolorPackets();
     void setAutoScroll(bool enabled = true);
     void setCaptureInProgress(bool in_progress = false) { capture_in_progress_ = in_progress; tail_at_end_ = in_progress; }
+    void captureFileReadFinished();
 
 protected:
     void showEvent(QShowEvent *);
@@ -121,6 +122,7 @@ private:
     void setColumnVisibility();
     int sizeHintForColumn(int column) const;
     void initHeaderContextMenu();
+    void drawCurrentPacket();
 
 signals:
     void packetDissectionChanged();
@@ -146,6 +148,7 @@ public slots:
     void ignoreAllDisplayedFrames(bool set);
     void setTimeReference();
     void unsetAllTimeReferences();
+    void applyTimeShift();
     void redrawVisiblePackets();
     void columnsChanged();
     void fieldsChanged(capture_file *cf);
@@ -158,6 +161,7 @@ private slots:
     void columnVisibilityTriggered();
     void sectionResized(int col, int, int new_width);
     void sectionMoved(int, int, int);
+    void updateRowHeights(const QModelIndex &ih_index);
     void copySummary();
     void vScrollBarActionTriggered(int);
     void drawFarOverlay();

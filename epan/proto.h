@@ -56,9 +56,7 @@ extern "C" {
 /** @defgroup prototree The Protocol Tree
  *
  * Dissectors use proto_tree_add_* to add items to the protocol tree. In
- * most cases you'll want to use proto_tree_add_item(). In general
- * proto_tree_add_text() should be avoided unless you explicitly don't
- * want to allow filtering.
+ * most cases you'll want to use proto_tree_add_item().
  *
  * @{
  */
@@ -499,9 +497,8 @@ WS_DLL_PUBLIC WS_MSVC_NORETURN void proto_report_dissector_bug(const char *messa
 /* For integral types, the display format is a BASE_* field_display_e value
  * possibly ORed with BASE_*_STRING */
 
-/** FIELD_DISPLAY_E_MASK selects the field_display_e value.  Its current
- * value means that we may have at most 16 field_display_e values. */
-#define FIELD_DISPLAY_E_MASK 0x0F
+/** FIELD_DISPLAY_E_MASK selects the field_display_e value. */
+#define FIELD_DISPLAY_E_MASK 0xFF
 
 typedef enum {
 /* Integral types */
@@ -516,23 +513,37 @@ typedef enum {
 /* String types */
 	STR_ASCII    = BASE_NONE, /**< shows non-printable ASCII characters as C-style escapes */
 	/* XXX, support for format_text_wsp() ? */
-	STR_UNICODE  = 7,         /**< shows non-printable UNICODE characters as \\uXXXX (XXX for now non-printable characters display depends on UI) */
+	STR_UNICODE  = 7,   /**< shows non-printable UNICODE characters as \\uXXXX (XXX for now non-printable characters display depends on UI) */
 
 /* Byte types */
-	SEP_DOT = 8,        /**< hexadecimal bytes with a period (.) between each byte */
-	SEP_DASH  = 9,      /**< hexadecimal bytes with a dash (-) between each byte */
-	SEP_COLON = 10,     /**< hexadecimal bytes with a colon (:) between each byte */
-	SEP_SPACE  = 11     /**< hexadecimal bytes with a space between each byte */
+	SEP_DOT      = 8,   /**< hexadecimal bytes with a period (.) between each byte */
+	SEP_DASH     = 9,   /**< hexadecimal bytes with a dash (-) between each byte */
+	SEP_COLON    = 10,  /**< hexadecimal bytes with a colon (:) between each byte */
+	SEP_SPACE    = 11,  /**< hexadecimal bytes with a space between each byte */
+
+/* Address types */
+	BASE_NETMASK = 12,  /**< Used for IPv4 address that shouldn't be resolved (like for netmasks) */
+
+/* Port types */
+	BASE_PT_UDP  = 13,  /**< UDP port */
+	BASE_PT_TCP  = 14,  /**< TCP port */
+	BASE_PT_DCCP = 15,  /**< DCCP port */
+	BASE_PT_SCTP = 16   /**< SCTP port */
 } field_display_e;
+
+#define FIELD_DISPLAY(d) ((d) & FIELD_DISPLAY_E_MASK)
 
 /* Following constants have to be ORed with a field_display_e when dissector
  * want to use specials value-string MACROs for a header_field_info */
-#define BASE_RANGE_STRING 0x10
-#define BASE_EXT_STRING   0x20
-#define BASE_VAL64_STRING 0x40
+#define BASE_RANGE_STRING 0x100
+#define BASE_EXT_STRING   0x200
+#define BASE_VAL64_STRING 0x400
 
 /** BASE_ values that cause the field value to be displayed twice */
 #define IS_BASE_DUAL(b) ((b)==BASE_DEC_HEX||(b)==BASE_HEX_DEC)
+
+/** BASE_PT_ values display decimal and transport port service name */
+#define IS_BASE_PORT(b) (((b)==BASE_PT_UDP||(b)==BASE_PT_TCP||(b)==BASE_PT_DCCP||(b)==BASE_PT_SCTP))
 
 /* For FT_ABSOLUTE_TIME, the display format is an absolute_time_display_e
  * as per time_fmt.h. */
@@ -552,7 +563,7 @@ struct _header_field_info {
 	const char		*name;           /**< [FIELDNAME] full name of this field */
 	const char		*abbrev;         /**< [FIELDABBREV] abbreviated name of this field */
 	enum ftenum		 type;           /**< [FIELDTYPE] field type, one of FT_ (from ftypes.h) */
-	int			     display;        /**< [FIELDDISPLAY] one of BASE_, or field bit-width if FT_BOOLEAN and non-zero bitmask */
+	int			 display;        /**< [FIELDDISPLAY] one of BASE_, or field bit-width if FT_BOOLEAN and non-zero bitmask */
 	const void		*strings;        /**< [FIELDCONVERT] value_string, val64_string, range_string or true_false_string,
 				                      typically converted by VALS(), RVALS() or TFS().
 				                      If this is an FT_PROTOCOL then it points to the
@@ -742,6 +753,8 @@ typedef proto_node proto_item;
 #define PI_SECURITY             0x0a000000
 /** The protocol field indicates a packet comment */
 #define PI_COMMENTS_GROUP       0x0b000000
+/** The protocol field indicates a decryption problem */
+#define PI_DECRYPTION           0x0c000000
 
 /* add more, see https://wiki.wireshark.org/Development/ExpertInfo */
 
@@ -1021,7 +1034,7 @@ WS_DLL_PUBLIC proto_item *
 proto_tree_add_item_ret_uint(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 const gint start, gint length, const guint encoding, guint32 *retval);
 
-/** (DEPRECATED) Add a text-only node to a proto_tree.
+/** (INTERNAL USE ONLY) Add a text-only node to a proto_tree.
  @param tree the tree to append this item to
  @param tvb the tv buffer of the current data
  @param start start of data in tvb
@@ -1029,11 +1042,11 @@ const gint start, gint length, const guint encoding, guint32 *retval);
  @param format printf like format string
  @param ... printf like parameters
  @return the newly created item */
-WS_DLL_PUBLIC proto_item *
-proto_tree_add_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, const char *format,
+proto_item *
+proto_tree_add_text_internal(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, const char *format,
 	...) G_GNUC_PRINTF(5,6);
 
-/** (DEPRECATED) Add a text-only node to a proto_tree using a variable argument list.
+/** (INTERNAL USE ONLY) Add a text-only node to a proto_tree using a variable argument list.
  @param tree the tree to append this item to
  @param tvb the tv buffer of the current data
  @param start start of data in tvb
@@ -1042,12 +1055,11 @@ proto_tree_add_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, co
  @param ap variable argument list
  @return the newly created item */
 proto_item *
-proto_tree_add_text_valist(proto_tree *tree, tvbuff_t *tvb, gint start,
+proto_tree_add_text_valist_internal(proto_tree *tree, tvbuff_t *tvb, gint start,
 	gint length, const char *format, va_list ap)
 	G_GNUC_PRINTF(5, 0);
 
 /** Add a text-only node that creates a subtree underneath.
- proto_tree_add_text + proto_item_add_subtree
  @param tree the tree to append this item to
  @param tvb the tv buffer of the current data
  @param start start of data in tvb
@@ -1060,7 +1072,6 @@ WS_DLL_PUBLIC proto_tree *
 proto_tree_add_subtree(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, gint idx, proto_item **tree_item, const char *text);
 
 /** Add a text-only node that creates a subtree underneath.
- proto_tree_add_text + proto_item_add_subtree
  @param tree the tree to append this item to
  @param tvb the tv buffer of the current data
  @param start start of data in tvb
@@ -1385,7 +1396,7 @@ proto_tree_add_ipv4_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint st
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_ipv6(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-	gint length, const guint8* value_ptr);
+	gint length, const struct e_in6_addr *value_ptr);
 
 /** Add a formatted FT_IPv6 to a proto_tree, with the format generating
     the string for the value and with the field name being included
@@ -1401,7 +1412,7 @@ proto_tree_add_ipv6(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_ipv6_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-	gint start, gint length, const guint8* value_ptr, const char *format,
+	gint start, gint length, const struct e_in6_addr *value_ptr, const char *format,
 	...) G_GNUC_PRINTF(7,8);
 
 /** Add a formatted FT_IPv6 to a proto_tree, with the format generating
@@ -1417,7 +1428,7 @@ proto_tree_add_ipv6_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_ipv6_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-	gint length, const guint8* value_ptr, const char *format, ...) G_GNUC_PRINTF(7,8);
+	gint length, const struct e_in6_addr *value_ptr, const char *format, ...) G_GNUC_PRINTF(7,8);
 
 /** Add a FT_ETHER to a proto_tree.
  @param tree the tree to append this item to
@@ -2004,18 +2015,6 @@ proto_register_protocol(const char *name, const char *short_name, const char *fi
 WS_DLL_PUBLIC gboolean
 proto_deregister_protocol(const char *short_name);
 
-/** Mark protocol as private
- @param proto_id the handle of the protocol */
-WS_DLL_PUBLIC
-void
-proto_mark_private(const int proto_id);
-
-/** Return if protocol is private
- @param proto_id the handle of the protocol
- @return TRUE if it is a private protocol, FALSE is not. */
-WS_DLL_PUBLIC gboolean
-proto_is_private(const int proto_id);
-
 /** This type of function can be registered to get called whenever
     a given field was not found but a its prefix is matched;
     It can be used to procrastinate the hf array registration.
@@ -2189,10 +2188,14 @@ WS_DLL_PUBLIC void proto_heuristic_dissector_foreach(const protocol_t *protocol,
  * unchanged. May be NULL.
  * @param is_ssl Set to TRUE if the layer list contains SSL/TLS, otherwise
  * unchanged. May be NULL.
+ * @param is_rtp Set to TRUE if the layer list contains RTP, otherwise
+ * unchanged. May be NULL.
+ * @param is_lte_rlc Set to TRUE if the layer list contains LTE RLC, otherwise
+ * unchanged. May be NULL.
  */
 WS_DLL_PUBLIC void proto_get_frame_protocols(const wmem_list_t *layers,
       gboolean *is_ip, gboolean *is_tcp, gboolean *is_udp, gboolean *is_sctp,
-      gboolean *is_ssl, gboolean *is_rtp);
+      gboolean *is_ssl, gboolean *is_rtp, gboolean *is_lte_rlc);
 
 /** Find a protocol by name in a layer list.
  * @param layers Protocol layer list
@@ -2252,6 +2255,10 @@ WS_DLL_PUBLIC void proto_registrar_dump_protocols(void);
 
 /** Dumps a glossary of the field value strings or true/false strings to STDOUT */
 WS_DLL_PUBLIC void proto_registrar_dump_values(void);
+
+/** Dumps the number of protocol and field registrations to STDOUT.
+ @return FALSE if we pre-allocated enough fields, TRUE otherwise. */
+WS_DLL_PUBLIC gboolean proto_registrar_dump_fieldcount(void);
 
 /** Dumps a glossary of the protocol and field registrations to STDOUT. */
 WS_DLL_PUBLIC void proto_registrar_dump_fields(void);

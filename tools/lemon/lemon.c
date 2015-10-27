@@ -2710,6 +2710,7 @@ void Parse(struct lemon *gp)
   if( filesize>100000000 || filebuf==0 ){
     ErrorMsg(ps.filename,0,"Input file too large.");
     gp->errorcnt++;
+    free(filebuf);
     fclose(fp);
     return;
   }
@@ -3193,9 +3194,11 @@ PRIVATE char *pathsearch(char *argv0, char *name, int modemask)
     pathlist = getenv("PATH");
     if( pathlist==0 ) pathlist = ".:/bin:/usr/bin";
     pathbuf = (char *) malloc( lemonStrlen(pathlist) + 1 );
+    if( pathbuf == 0 )
+      return NULL;
+    pathbufptr = pathbuf;
     path = (char *)malloc( lemonStrlen(pathlist)+lemonStrlen(name)+2 );
-    if( (pathbuf != 0) && (path!=0) ){
-      pathbufptr = pathbuf;
+    if( (path!=0) ){
       lemon_strcpy(pathbuf, pathlist);
       while( *pathbuf ){
         cp = strchr(pathbuf,':');
@@ -3208,8 +3211,8 @@ PRIVATE char *pathsearch(char *argv0, char *name, int modemask)
         else pathbuf = &cp[1];
         if( access(path,modemask)==0 ) break;
       }
-      free(pathbufptr);
     }
+    free(pathbufptr);
   }
   return path;
 }

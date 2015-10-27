@@ -31,7 +31,6 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/prefs-int.h>
-#include <epan/dissector_filters.h>
 #include <epan/color_dissector_filters.h>
 #include <epan/epan_dissect.h>
 #include <epan/column.h>
@@ -47,7 +46,7 @@
 #include "ui/recent_utils.h"
 #include "ui/simple_dialog.h"
 #include "ui/software_update.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/about_dlg.h"
@@ -150,6 +149,8 @@ static void name_resolution_cb(GtkWidget *w, gpointer d, gboolean* res_flag);
 static void colorize_cb(GtkWidget *w, gpointer d);
 static void rebuild_protocol_prefs_menu (module_t *prefs_module_p, gboolean preferences,
         GtkUIManager *ui_menu, const char *path);
+
+static void plugin_if_menubar_preference(gconstpointer user_data);
 
 
 /*  As a general GUI guideline, we try to follow the Gnome Human Interface Guidelines, which can be found at:
@@ -2548,13 +2549,15 @@ main_menu_new(GtkAccelGroup ** table)
     if (table)
         *table = grp;
 
+    plugin_if_register_gui_cb(PLUGIN_IF_PREFERENCE_SAVE, plugin_if_menubar_preference);
+
     return menubar;
 }
 
 static void
 menu_dissector_filter_cb(GtkAction *action _U_,  gpointer callback_data)
 {
-    dissector_filter_t      *filter_entry = (dissector_filter_t *)callback_data;
+    color_conversation_filter_t  *filter_entry = (color_conversation_filter_t *)callback_data;
     GtkWidget               *filter_te;
     const char              *buf;
 
@@ -2577,7 +2580,7 @@ menu_dissector_filter_cb(GtkAction *action _U_,  gpointer callback_data)
 static gboolean
 menu_dissector_filter_spe_cb(frame_data *fd _U_, epan_dissect_t *edt, gpointer callback_data)
 {
-    dissector_filter_t *filter_entry = (dissector_filter_t *)callback_data;
+    color_conversation_filter_t *filter_entry = (color_conversation_filter_t*)callback_data;
 
     /* XXX - this gets the packet_info of the last dissected packet, */
     /* which is not necessarily the last selected packet */
@@ -2588,8 +2591,8 @@ menu_dissector_filter_spe_cb(frame_data *fd _U_, epan_dissect_t *edt, gpointer c
 static void
 menu_dissector_filter(capture_file *cf)
 {
-    GList *list_entry = dissector_filter_list;
-    dissector_filter_t *filter_entry;
+    GList *list_entry = color_conv_filter_list;
+    color_conversation_filter_t *filter_entry;
 
     guint merge_id;
     GtkActionGroup *action_group;
@@ -2635,12 +2638,12 @@ menu_dissector_filter(capture_file *cf)
     }
 
     while (list_entry != NULL) {
-        filter_entry = (dissector_filter_t *)list_entry->data;
+        filter_entry = (color_conversation_filter_t *)list_entry->data;
         action_name = g_strdup_printf ("filter-%u", i);
         /*g_warning("action_name %s, filter_entry->name %s",action_name,filter_entry->name);*/
         action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", action_name,
-                 "label", filter_entry->name,
+                 "label", filter_entry->display_name,
                  "sensitive", menu_dissector_filter_spe_cb(/* frame_data *fd _U_*/ NULL, cf->edt, filter_entry),
                  NULL);
         g_signal_connect (action, "activate",
@@ -4514,13 +4517,12 @@ set_menus_for_captured_packets(gboolean have_captured_packets)
 void
 set_menus_for_selected_packet(capture_file *cf)
 {
-    GList      *list_entry = dissector_filter_list;
     GList      *color_list_entry = color_conv_filter_list;
     guint       i          = 0;
     gboolean    properties = FALSE;
     const char *abbrev     = NULL;
     char       *prev_abbrev;
-    gboolean is_ip = FALSE, is_tcp = FALSE, is_udp = FALSE, is_sctp = FALSE, is_ssl = FALSE;
+    gboolean is_ip = FALSE, is_tcp = FALSE, is_udp = FALSE, is_sctp = FALSE, is_ssl = FALSE, is_lte_rlc = FALSE;
 
     /* Making the menu context-sensitive allows for easier selection of the
        desired item and has the added benefit, with large captures, of
@@ -4543,7 +4545,7 @@ set_menus_for_selected_packet(capture_file *cf)
            than one time reference frame or the current frame isn't a
            time reference frame). (XXX - why check frame_selected?) */
     if (cf->edt)
-        proto_get_frame_protocols(cf->edt->pi.layers, &is_ip, &is_tcp, &is_udp, &is_sctp, &is_ssl, NULL);
+        proto_get_frame_protocols(cf->edt->pi.layers, &is_ip, &is_tcp, &is_udp, &is_sctp, &is_ssl, NULL, &is_lte_rlc);
 
     if (cf->edt && cf->edt->tree) {
         GPtrArray          *ga;
@@ -4698,22 +4700,27 @@ set_menus_for_selected_packet(capture_file *cf)
                          frame_selected);
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/StatisticsMenu/TCPStreamGraphMenu",
                          is_tcp);
+    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/TelephonyMenu/LTEmenu/LTE_RLC_Graph",
+                         is_lte_rlc);
 
-    while (list_entry != NULL) {
-        dissector_filter_t *filter_entry;
+    i = 0;
+    color_list_entry = color_conv_filter_list;
+    while (color_list_entry != NULL) {
+        color_conversation_filter_t *filter_entry;
         gchar *path;
 
-        filter_entry = (dissector_filter_t *)list_entry->data;
+        filter_entry = (color_conversation_filter_t *)color_list_entry->data;
         path = g_strdup_printf("/Menubar/AnalyzeMenu/ConversationFilterMenu/Filters/filter-%u", i);
 
         set_menu_sensitivity(ui_manager_main_menubar, path,
             menu_dissector_filter_spe_cb(/* frame_data *fd _U_*/ NULL, cf->edt, filter_entry));
         g_free(path);
         i++;
-        list_entry = g_list_next(list_entry);
+        color_list_entry = g_list_next(color_list_entry);
     }
 
     i = 0;
+    color_list_entry = color_conv_filter_list;
     while (color_list_entry != NULL) {
         color_conversation_filter_t* color_filter;
         gchar *path;
@@ -5521,6 +5528,27 @@ ws_menubar_external_menus(void)
         /* Iterate Loop */
         user_menu = g_list_next (user_menu);
         cnt++;
+    }
+}
+
+void plugin_if_menubar_preference(gconstpointer user_data)
+{
+    if ( user_data != NULL )
+    {
+        GHashTable * dataSet = (GHashTable *) user_data;
+        const char * module_name;
+        const char * pref_name;
+        const char * pref_value;
+        if ( g_hash_table_lookup_extended(dataSet, "pref_module", NULL, (void**)&module_name ) &&
+                g_hash_table_lookup_extended(dataSet, "pref_key", NULL, (void**)&pref_name ) &&
+                g_hash_table_lookup_extended(dataSet, "pref_value", NULL, (void**)&pref_value ) )
+        {
+            if ( prefs_store_ext(module_name, pref_name, pref_value) )
+            {
+                redissect_packets();
+                redissect_all_packet_windows();
+            }
+        }
     }
 }
 

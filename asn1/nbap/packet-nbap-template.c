@@ -55,17 +55,9 @@
 
 /* Debug */
 #if 0
-#define nbap_debug0(str) g_warning(str)
-#define nbap_debug1(str,p1) g_warning(str,p1)
-#define nbap_debug2(str,p1,p2) g_warning(str,p1,p2)
-#define nbap_debug3(str,p1,p2,p3) g_warning(str,p1,p2,p3)
-#define nbap_debug4(str,p1,p2,p3,p4) g_warning(str,p1,p2,p3,p4)
+#define nbap_debug(...) g_warning(__VA_ARGS__)
 #else
-#define nbap_debug0(str)
-#define nbap_debug1(str,p1)
-#define nbap_debug2(str,p1,p2)
-#define nbap_debug3(str,p1,p2,p3)
-#define nbap_debug4(str,p1,p2,p3,p4)
+#define nbap_debug(...)
 #endif
 
 void proto_register_nbap(void);
@@ -356,7 +348,7 @@ static void add_hsdsch_bind(packet_info *pinfo){
 	}
 
 	/* Set port to zero use that as an indication of whether we have data or not */
-	SET_ADDRESS(&null_addr, AT_NONE, 0, NULL);
+	set_address(&null_addr, AT_NONE, 0, NULL);
 	for (i = 0; i < maxNrOfMACdFlows; i++) {
 		if (nbap_hsdsch_channel_info[i].crnc_port != 0){
 			conversation = find_conversation(pinfo->fd->num, &(nbap_hsdsch_channel_info[i].crnc_address), &null_addr,

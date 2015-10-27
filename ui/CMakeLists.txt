@@ -44,14 +44,17 @@ set(COMMON_UI_SRC
 	profile.c
 	proto_hier_stats.c
 	recent.c
+	rtp_media.c
 	rtp_stream.c
 	service_response_time.c
 	software_update.c
 	ssl_key_export.c
 	tap_export_pdu.c
+	tap-iax2-analysis.c
 	tap-rtp-common.c
 	tap-sctp-analysis.c
 	tap-sequence-analysis.c
+	tap-rlc-graph.c
 	tap-tcp-stream.c
 	text_import.c
 	time_shift.c
@@ -62,8 +65,10 @@ set(COMMON_UI_SRC
 
 # Enables visibility in IDEs
 file(GLOB EXTRA_UI_HEADERS
-	rtp_analysis.h
+	rtp_media.h
 	rtp_stream.h
+	tap-iax2-analysis.h
+	tap-rtp-analysis.h
 )
 
 set(DIRTY_UI_SRC)
@@ -76,11 +81,11 @@ set(CLEAN_FILES
 	${COMMON_UI_SRC}
 )
 
-if (WERROR)
+if (WERROR_COMMON_FLAGS)
 	set_source_files_properties(
 		${CLEAN_FILES}
 		PROPERTIES
-		COMPILE_FLAGS -Werror
+		COMPILE_FLAGS ${WERROR_COMMON_FLAGS}
 	)
 endif()
 

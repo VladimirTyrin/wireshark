@@ -289,7 +289,6 @@ struct _protocol {
 	int         proto_id;     /* field ID for this protocol */
 	gboolean    is_enabled;   /* TRUE if protocol is enabled */
 	gboolean    can_toggle;   /* TRUE if is_enabled can be changed */
-	gboolean    is_private;   /* TRUE is protocol is private */
 	GList      *heur_list;    /* Heuristic dissectors associated with this protocol */
 };
 
@@ -1139,9 +1138,9 @@ proto_tree_add_text_node(proto_tree *tree, tvbuff_t *tvb, gint start, gint lengt
 	return pi;
 }
 
-/* (DEPRECATED) Add a text-only node to the proto_tree */
+/* (INTERNAL USE ONLY) Add a text-only node to the proto_tree */
 proto_item *
-proto_tree_add_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length,
+proto_tree_add_text_internal(proto_tree *tree, tvbuff_t *tvb, gint start, gint length,
 		    const char *format, ...)
 {
 	proto_item	  *pi;
@@ -1161,9 +1160,9 @@ proto_tree_add_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length,
 	return pi;
 }
 
-/* (DEPRECATED) Add a text-only node to the proto_tree (va_list version) */
+/* (INTERNAL USE ONLY) Add a text-only node to the proto_tree (va_list version) */
 proto_item *
-proto_tree_add_text_valist(proto_tree *tree, tvbuff_t *tvb, gint start,
+proto_tree_add_text_valist_internal(proto_tree *tree, tvbuff_t *tvb, gint start,
 			   gint length, const char *format, va_list ap)
 {
 	proto_item        *pi;
@@ -1181,7 +1180,6 @@ proto_tree_add_text_valist(proto_tree *tree, tvbuff_t *tvb, gint start,
 }
 
 /* Add a text-only node that creates a subtree underneath.
- * proto_tree_add_text + proto_item_add_subtree
  */
 proto_tree *
 proto_tree_add_subtree(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, gint idx, proto_item **tree_item, const char *text)
@@ -1190,7 +1188,6 @@ proto_tree_add_subtree(proto_tree *tree, tvbuff_t *tvb, gint start, gint length,
 }
 
 /* Add a text-only node that creates a subtree underneath.
- * proto_tree_add_text + proto_item_add_subtree
  */
 proto_tree *
 proto_tree_add_subtree_format(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, gint idx, proto_item **tree_item, const char *format, ...)
@@ -1200,7 +1197,7 @@ proto_tree_add_subtree_format(proto_tree *tree, tvbuff_t *tvb, gint start, gint 
 	va_list	    ap;
 
 	va_start(ap, format);
-	pi = proto_tree_add_text_valist(tree, tvb, start, length, format, ap);
+	pi = proto_tree_add_text_valist_internal(tree, tvb, start, length, format, ap);
 	va_end(ap);
 
 	if (tree_item != NULL)
@@ -2924,7 +2921,7 @@ proto_tree_set_ipv4(field_info *fi, guint32 value)
 /* Add a FT_IPv6 to a proto_tree */
 proto_item *
 proto_tree_add_ipv6(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-		    gint length, const guint8* value_ptr)
+		    gint length, const struct e_in6_addr *value_ptr)
 {
 	proto_item	  *pi;
 	header_field_info *hfinfo;
@@ -2934,7 +2931,7 @@ proto_tree_add_ipv6(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 	DISSECTOR_ASSERT_FIELD_TYPE(hfinfo, FT_IPv6);
 
 	pi = proto_tree_add_pi(tree, hfinfo, tvb, start, &length);
-	proto_tree_set_ipv6(PNODE_FINFO(pi), value_ptr);
+	proto_tree_set_ipv6(PNODE_FINFO(pi), value_ptr->bytes);
 
 	return pi;
 }
@@ -2942,7 +2939,7 @@ proto_tree_add_ipv6(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 proto_item *
 proto_tree_add_ipv6_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 				 gint start, gint length,
-				 const guint8* value_ptr,
+				 const struct e_in6_addr *value_ptr,
 				 const char *format, ...)
 {
 	proto_item	  *pi;
@@ -2960,7 +2957,8 @@ proto_tree_add_ipv6_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 
 proto_item *
 proto_tree_add_ipv6_format(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-			   gint start, gint length, const guint8* value_ptr,
+			   gint start, gint length,
+			   const struct e_in6_addr *value_ptr,
 			   const char *format, ...)
 {
 	proto_item	  *pi;
@@ -3485,6 +3483,41 @@ static void
 proto_tree_set_boolean(field_info *fi, guint64 value)
 {
 	proto_tree_set_uint64(fi, value);
+}
+
+/* Generate, into "buf", a string showing the bits of a bitfield.
+   Return a pointer to the character after that string. */
+/*XXX this needs a buf_len check */
+static char *
+other_decode_bitfield_value(char *buf, const guint64 val, const guint64 mask, const int width)
+{
+	int i;
+	guint64 bit;
+	char *p;
+
+	i = 0;
+	p = buf;
+	bit = G_GUINT64_CONSTANT(1) << (width - 1);
+	for (;;) {
+		if (mask & bit) {
+			/* This bit is part of the field.  Show its value. */
+			if (val & bit)
+				*p++ = '1';
+			else
+				*p++ = '0';
+		} else {
+			/* This bit is not part of the field. */
+			*p++ = '.';
+		}
+		bit >>= 1;
+		i++;
+		if (i >= width)
+			break;
+		if (i % 4 == 0)
+			*p++ = ' ';
+	}
+	*p = '\0';
+	return p;
 }
 
 static char *
@@ -4690,26 +4723,26 @@ proto_custom_set(proto_tree* tree, GSList *field_ids, gint occurrence,
 					case FT_IPv4:
 						ipv4 = (ipv4_addr *)fvalue_get(&finfo->value);
 						n_addr = ipv4_get_net_order_addr(ipv4);
-						SET_ADDRESS (&addr, AT_IPv4, 4, &n_addr);
+						set_address (&addr, AT_IPv4, 4, &n_addr);
 						address_to_str_buf(&addr, result+offset_r, size-offset_r);
 						offset_r = (int)strlen(result);
 						break;
 
 					case FT_IPv6:
 						ipv6 = (struct e_in6_addr *)fvalue_get(&finfo->value);
-						SET_ADDRESS (&addr, AT_IPv6, sizeof(struct e_in6_addr), ipv6);
+						set_address (&addr, AT_IPv6, sizeof(struct e_in6_addr), ipv6);
 						address_to_str_buf(&addr, result+offset_r, size-offset_r);
 						offset_r = (int)strlen(result);
 						break;
 
 					case FT_FCWWN:
-						SET_ADDRESS (&addr, AT_FCWWN, FCWWN_ADDR_LEN, fvalue_get(&finfo->value));
+						set_address (&addr, AT_FCWWN, FCWWN_ADDR_LEN, fvalue_get(&finfo->value));
 						address_to_str_buf(&addr, result+offset_r, size-offset_r);
 						offset_r = (int)strlen(result);
 						break;
 
 					case FT_ETHER:
-						SET_ADDRESS (&addr, AT_ETHER, FT_ETHER_LEN, fvalue_get(&finfo->value));
+						set_address (&addr, AT_ETHER, FT_ETHER_LEN, fvalue_get(&finfo->value));
 						address_to_str_buf(&addr, result+offset_r, size-offset_r);
 						offset_r = (int)strlen(result);
 						break;
@@ -5267,7 +5300,6 @@ proto_register_protocol(const char *name, const char *short_name,
 	protocol->fields = g_ptr_array_new();
 	protocol->is_enabled = TRUE; /* protocol is enabled by default */
 	protocol->can_toggle = TRUE;
-	protocol->is_private = FALSE;
 	protocol->heur_list = NULL;
 	/* list will be sorted later by name, when all protocols completed registering */
 	protocols = g_list_prepend(protocols, protocol);
@@ -5332,24 +5364,6 @@ proto_deregister_protocol(const char *short_name)
     last_field_name = NULL;
 
     return TRUE;
-}
-
-void
-proto_mark_private(const int proto_id)
-{
-	protocol_t *protocol = find_protocol_by_id(proto_id);
-	if (protocol)
-		protocol->is_private = TRUE;
-}
-
-gboolean
-proto_is_private(const int proto_id)
-{
-	protocol_t *protocol = find_protocol_by_id(proto_id);
-	if (protocol)
-		return protocol->is_private;
-	else
-		return FALSE;
 }
 
 /*
@@ -5540,7 +5554,8 @@ void
 proto_get_frame_protocols(const wmem_list_t *layers, gboolean *is_ip,
 			  gboolean *is_tcp, gboolean *is_udp,
 			  gboolean *is_sctp, gboolean *is_ssl,
-			  gboolean *is_rtp)
+			  gboolean *is_rtp,
+			  gboolean *is_lte_rlc)
 {
 	wmem_list_frame_t *protos = wmem_list_head(layers);
 	int	    proto_id;
@@ -5567,7 +5582,9 @@ proto_get_frame_protocols(const wmem_list_t *layers, gboolean *is_ip,
 			*is_ssl = TRUE;
 		} else if (is_rtp && !strcmp(proto_name, "rtp")) {
 			*is_rtp = TRUE;
-		}
+		} else if (is_lte_rlc && !strcmp(proto_name, "rlc-lte")) {
+			*is_lte_rlc = TRUE;
+        }
 
 		protos = wmem_list_frame_next(protos);
 	}
@@ -5890,7 +5907,29 @@ static const value_string hf_display[] = {
 	{ ABSOLUTE_TIME_LOCAL,		  "ABSOLUTE_TIME_LOCAL"		   },
 	{ ABSOLUTE_TIME_UTC,		  "ABSOLUTE_TIME_UTC"		   },
 	{ ABSOLUTE_TIME_DOY_UTC,	  "ABSOLUTE_TIME_DOY_UTC"	   },
+	{ BASE_PT_UDP,			  "BASE_PT_UDP"			   },
+	{ BASE_PT_TCP,			  "BASE_PT_TCP"			   },
+	{ BASE_PT_DCCP,			  "BASE_PT_DCCP"		   },
+	{ BASE_PT_SCTP,			  "BASE_PT_SCTP"		   },
 	{ 0,				  NULL } };
+
+static inline port_type
+display_to_port_type(field_display_e e)
+{
+	switch (e) {
+	case BASE_PT_UDP:
+		return PT_UDP;
+	case BASE_PT_TCP:
+		return PT_TCP;
+	case BASE_PT_DCCP:
+		return PT_DCCP;
+	case BASE_PT_SCTP:
+		return PT_SCTP;
+	default:
+		break;
+	}
+	return PT_NONE;
+}
 
 /* temporary function containing assert part for easier profiling */
 static void
@@ -6029,6 +6068,26 @@ tmp_fld_check_assert(header_field_info *hfinfo)
 		case FT_UINT48:
 		case FT_UINT56:
 		case FT_UINT64:
+			if (IS_BASE_PORT(hfinfo->display)) {
+				tmp_str = val_to_str_wmem(NULL, hfinfo->display, hf_display, "(Unknown: 0x%x)");
+				if (hfinfo->type != FT_UINT16) {
+					g_error("Field '%s' (%s) has 'display' value %s but it can only be used with FT_UINT16, not %s\n",
+						hfinfo->name, hfinfo->abbrev,
+						tmp_str, ftype_name(hfinfo->type));
+				}
+				if (hfinfo->strings != NULL) {
+					g_error("Field '%s' (%s) is an %s (%s) but has a strings value\n",
+						hfinfo->name, hfinfo->abbrev,
+						ftype_name(hfinfo->type), tmp_str);
+				}
+				if (hfinfo->bitmask != 0) {
+					g_error("Field '%s' (%s) is an %s (%s) but has a bitmask\n",
+						hfinfo->name, hfinfo->abbrev,
+						ftype_name(hfinfo->type), tmp_str);
+				}
+				wmem_free(NULL, tmp_str);
+				break;
+			}
 			/*  Require integral types (other than frame number,
 			 *  which is always displayed in decimal) to have a
 			 *  number base.
@@ -6141,6 +6200,22 @@ tmp_fld_check_assert(header_field_info *hfinfo)
 					ftype_name(hfinfo->type));
 			break;
 
+		case FT_IPv4:
+			switch (hfinfo->display) {
+				case BASE_NONE:
+				case BASE_NETMASK:
+					break;
+
+				default:
+					tmp_str = val_to_str_wmem(NULL, hfinfo->display, hf_display, "(Unknown: 0x%x)");
+					g_error("Field '%s' (%s) is an IPv4 value (%s)"
+						" but is being displayed as %s\n",
+						hfinfo->name, hfinfo->abbrev,
+						ftype_name(hfinfo->type), tmp_str);
+					wmem_free(NULL, tmp_str);
+					break;
+			}
+			break;
 		default:
 			if (hfinfo->display != BASE_NONE) {
 				tmp_str = val_to_str_wmem(NULL, hfinfo->display, hf_display, "(Bit count: %d)");
@@ -6214,7 +6289,7 @@ register_number_string_decoding_error(void)
 	proto_set_cant_toggle(proto_number_string_decoding_error);
 }
 
-#define PROTO_PRE_ALLOC_HF_FIELDS_MEM (144000+PRE_ALLOC_EXPERT_FIELDS_MEM)
+#define PROTO_PRE_ALLOC_HF_FIELDS_MEM (170000+PRE_ALLOC_EXPERT_FIELDS_MEM)
 static int
 proto_register_field_init(header_field_info *hfinfo, const int parent)
 {
@@ -6626,7 +6701,14 @@ proto_item_fill_label(field_info *fi, gchar *label_str)
 			addr.len  = 4;
 			addr.data = &n_addr;
 
-			addr_str = (char*)address_with_resolution_to_str(NULL, &addr);
+			if (hfinfo->display == BASE_NETMASK)
+			{
+				addr_str = (char*)address_to_str(NULL, &addr);
+			}
+			else
+			{
+				addr_str = (char*)address_with_resolution_to_str(NULL, &addr);
+			}
 			g_snprintf(label_str, ITEM_LABEL_LENGTH,
 				   "%s: %s", hfinfo->name, addr_str);
 			wmem_free(NULL, addr_str);
@@ -6936,7 +7018,7 @@ fill_label_number(field_info *fi, gchar *label_str, gboolean is_signed)
 		fmtfunc(tmp, value);
 		label_fill(label_str, 0, hfinfo, tmp);
 	}
-    else if (hfinfo->strings && hfinfo->type != FT_FRAMENUM) { /* Add fill_label_framenum? */
+	else if (hfinfo->strings && hfinfo->type != FT_FRAMENUM) { /* Add fill_label_framenum? */
 		const char *val_str = hf_try_val_to_str_const(value, hfinfo, "Unknown");
 
 		out = hfinfo_number_vals_format(hfinfo, buf, value);
@@ -6944,6 +7026,13 @@ fill_label_number(field_info *fi, gchar *label_str, gboolean is_signed)
 			label_fill(label_str, 0, hfinfo, val_str);
 		else
 			label_fill_descr(label_str, 0, hfinfo, val_str, out);
+	}
+	else if (IS_BASE_PORT(hfinfo->display)) {
+		gchar tmp[ITEM_LABEL_LENGTH];
+
+		port_with_resolution_to_str_buf(tmp, sizeof(tmp),
+			display_to_port_type((field_display_e)hfinfo->display), value);
+		label_fill(label_str, 0, hfinfo, tmp);
 	}
 	else {
 		out = hfinfo_number_value_format(hfinfo, buf, value);
@@ -7125,6 +7214,14 @@ hfinfo_number_value_format_display(const header_field_info *hfinfo, int display,
 			*(--ptr) = ' ';
 			ptr = hex_to_str_back(ptr, _hfinfo_type_hex_octet(hfinfo->type), value);
 			return ptr;
+
+		case BASE_PT_UDP:
+		case BASE_PT_TCP:
+		case BASE_PT_DCCP:
+		case BASE_PT_SCTP:
+			port_with_resolution_to_str_buf(buf, 32,
+					display_to_port_type((field_display_e)display), value);
+			return buf;
 
 		default:
 			g_assert_not_reached();
@@ -7773,6 +7870,58 @@ proto_registrar_dump_values(void)
 	}
 }
 
+/* Prints the number of registered fields.
+ * Useful for determining an appropriate value for
+ * PROTO_PRE_ALLOC_HF_FIELDS_MEM.
+ *
+ * Returns FALSE if PROTO_PRE_ALLOC_HF_FIELDS_MEM is larger than or equal to
+ * the number of fields, TRUE otherwise.
+ */
+gboolean
+proto_registrar_dump_fieldcount(void)
+{
+	guint32			i;
+	header_field_info	*hfinfo;
+	guint32			deregistered_count = 0;
+	guint32			same_name_count = 0;
+	guint32			protocol_count = 0;
+
+	for (i = 0; i < gpa_hfinfo.len; i++) {
+		if (gpa_hfinfo.hfi[i] == NULL) {
+			deregistered_count++;
+			continue; /* This is a deregistered protocol or header field */
+		}
+
+		PROTO_REGISTRAR_GET_NTH(i, hfinfo);
+
+		if (proto_registrar_is_protocol(i))
+			protocol_count++;
+
+		if (hfinfo->same_name_prev_id != -1)
+			same_name_count++;
+	}
+
+	printf ("There are %d header fields registered, of which:\n"
+		"\t%d are deregistered\n"
+		"\t%d are protocols\n"
+		"\t%d have the same name as another field\n\n",
+		gpa_hfinfo.len, deregistered_count, protocol_count,
+		same_name_count);
+
+	printf ("%d fields were pre-allocated.\n%s", PROTO_PRE_ALLOC_HF_FIELDS_MEM,
+		(gpa_hfinfo.allocated_len > PROTO_PRE_ALLOC_HF_FIELDS_MEM) ?
+		    "* * Please increase PROTO_PRE_ALLOC_HF_FIELDS_MEM (in epan/proto.c)! * *\n\n" :
+		    "\n");
+
+	printf ("The header field table consumes %d KiB of memory.\n",
+		(int)(gpa_hfinfo.allocated_len * sizeof(header_field_info *) / 1024));
+	printf ("The fields themselves consume %d KiB of memory.\n",
+		(int)(gpa_hfinfo.len * sizeof(header_field_info) / 1024));
+
+	return (gpa_hfinfo.allocated_len > PROTO_PRE_ALLOC_HF_FIELDS_MEM);
+}
+
+
 /* Dumps the contents of the registration database to stdout. An independent
  * program can take this output and format it into nice tables or HTML or
  * whatever.
@@ -7864,27 +8013,19 @@ proto_registrar_dump_fields(void)
 			    hfinfo->type == FT_INT56 ||
 			    hfinfo->type == FT_INT64) {
 
-				switch (hfinfo->display & FIELD_DISPLAY_E_MASK) {
+				switch (FIELD_DISPLAY(hfinfo->display)) {
 					case BASE_NONE:
-						base_name = "BASE_NONE";
-						break;
 					case BASE_DEC:
-						base_name = "BASE_DEC";
-						break;
 					case BASE_HEX:
-						base_name = "BASE_HEX";
-						break;
 					case BASE_OCT:
-						base_name = "BASE_OCT";
-						break;
 					case BASE_DEC_HEX:
-						base_name = "BASE_DEC_HEX";
-						break;
 					case BASE_HEX_DEC:
-						base_name = "BASE_HEX_DEC";
-						break;
 					case BASE_CUSTOM:
-						base_name = "BASE_CUSTOM";
+					case BASE_PT_UDP:
+					case BASE_PT_TCP:
+					case BASE_PT_DCCP:
+					case BASE_PT_SCTP:
+						base_name = val_to_str_const(FIELD_DISPLAY(hfinfo->display), hf_display, "????");
 						break;
 					default:
 						base_name = "????";
@@ -8574,7 +8715,7 @@ proto_tree_add_bitmask_text(proto_tree *parent_tree, tvbuff_t *tvb,
 	proto_item *item = NULL;
 
 	if (parent_tree) {
-		item = proto_tree_add_text(parent_tree, tvb, offset, len, "%s", name ? name : "");
+		item = proto_tree_add_text_internal(parent_tree, tvb, offset, len, "%s", name ? name : "");
 		if (proto_item_add_bitmask_tree(item, tvb, offset, len, ett, fields, encoding,
 					flags, TRUE, FALSE, FALSE, NULL, 0) && fallback) {
 			/* Still at first item - append 'fallback' text if any */
@@ -8915,7 +9056,7 @@ proto_tree_add_split_bits_crumb(proto_tree *tree, const int hfindex, tvbuff_t *t
 	header_field_info *hfinfo;
 
 	PROTO_REGISTRAR_GET_NTH(hfindex, hfinfo);
-	proto_tree_add_text(tree, tvb,
+	proto_tree_add_text_internal(tree, tvb,
 			    bit_offset >> 3,
 			    ((bit_offset + crumb_spec[crumb_index].crumb_bit_length - 1) >> 3) - (bit_offset >> 3) + 1,
 			    "%s crumb %d of %s (decoded above)",

@@ -35,7 +35,7 @@
 #include "ui/iface_lists.h"
 #include "ui/preference_utils.h"
 #include "ui/ui_util.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "qt_ui_utils.h"
 
@@ -569,12 +569,12 @@ void ManageInterfacesDialog::addRemoteInterfaces(GList* rlist, remote_options *r
             addr = (if_addr_t *)curr_addr->data;
             switch (addr->ifat_type) {
             case IF_AT_IPv4:
-                SET_ADDRESS(&addr_str, AT_IPv4, 4, &addr->addr.ip4_addr);
+                set_address(&addr_str, AT_IPv4, 4, &addr->addr.ip4_addr);
                 temp_addr_str = (char*)address_to_str(NULL, &addr_str);
                 g_string_append(ip_str, temp_addr_str);
                 break;
             case IF_AT_IPv6:
-                SET_ADDRESS(&addr_str, AT_IPv6, 16, addr->addr.ip6_addr);
+                set_address(&addr_str, AT_IPv6, 16, addr->addr.ip6_addr);
                 temp_addr_str = (char*)address_to_str(NULL, &addr_str);
                 g_string_append(ip_str, temp_addr_str);
                 break;

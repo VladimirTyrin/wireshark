@@ -41,7 +41,10 @@
  * RTPS protocol was developed by Real-Time Innovations, Inc. as wire
  * protocol for Data Distribution System.
  * Additional information at:
- *   Full OMG DDS Standard Specification:
+ *
+ *   OMG DDS standards: http://portals.omg.org/dds/omg-dds-standard/
+ *
+ *   Older OMG DDS specification:
  *                             http://www.omg.org/cgi-bin/doc?ptc/2003-07-07
  *
  *   NDDS and RTPS information: http://www.rti.com/resources.html
@@ -844,6 +847,7 @@ static const int* PAD_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* DATA_FLAGSv1[] = {
@@ -867,6 +871,7 @@ static const int* DATA_FLAGSv2[] = {
   &hf_rtps_flag_data_present_v2,                /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* NOKEY_DATA_FRAG_FLAGS[] = {
@@ -878,6 +883,7 @@ static const int* NOKEY_DATA_FRAG_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* NOKEY_DATA_FLAGS[] = {
@@ -889,6 +895,7 @@ static const int* NOKEY_DATA_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* ACKNACK_FLAGS[] = {
@@ -900,6 +907,7 @@ static const int* ACKNACK_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_final,                          /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* NACK_FRAG_FLAGS[] = {
@@ -911,6 +919,7 @@ static const int* NACK_FRAG_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* GAP_FLAGS[] = {
@@ -922,6 +931,7 @@ static const int* GAP_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* HEARTBEAT_FLAGS[] = {
@@ -933,6 +943,7 @@ static const int* HEARTBEAT_FLAGS[] = {
   &hf_rtps_flag_liveliness,                     /* Bit 2 */
   &hf_rtps_flag_final,                          /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* HEARTBEAT_BATCH_FLAGS[] = {
@@ -944,6 +955,7 @@ static const int* HEARTBEAT_BATCH_FLAGS[] = {
   &hf_rtps_flag_liveliness,                     /* Bit 2 */
   &hf_rtps_flag_final,                          /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* HEARTBEAT_FRAG_FLAGS[] = {
@@ -955,6 +967,7 @@ static const int* HEARTBEAT_FRAG_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* RTPS_DATA_FLAGS[] = {
@@ -966,6 +979,7 @@ static const int* RTPS_DATA_FLAGS[] = {
   &hf_rtps_flag_data_present_v2,                /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* RTPS_DATA_FRAG_FLAGS[] = {
@@ -977,6 +991,7 @@ static const int* RTPS_DATA_FRAG_FLAGS[] = {
   &hf_rtps_flag_data_frag_serialized_key,       /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* RTPS_DATA_BATCH_FLAGS[] = {
@@ -988,6 +1003,7 @@ static const int* RTPS_DATA_BATCH_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* RTPS_SAMPLE_INFO_FLAGS16[] = {
@@ -1007,6 +1023,7 @@ static const int* RTPS_SAMPLE_INFO_FLAGS16[] = {
   &hf_rtps_flag_offsetsn_present,               /* Bit 2 */
   &hf_rtps_flag_inline_qos16_v2,                /* Bit 1 */
   &hf_rtps_flag_timestamp_present,              /* Bit 0 */
+  NULL
 };
 
 static const int* INFO_TS_FLAGS[] = {
@@ -1018,6 +1035,7 @@ static const int* INFO_TS_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_timestamp,                      /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* INFO_SRC_FLAGS[] = {
@@ -1029,6 +1047,7 @@ static const int* INFO_SRC_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* INFO_REPLY_IP4_FLAGS[] = {
@@ -1040,6 +1059,7 @@ static const int* INFO_REPLY_IP4_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_multicast,                      /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* INFO_DST_FLAGS[] = {
@@ -1051,6 +1071,7 @@ static const int* INFO_DST_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 static const int* INFO_REPLY_FLAGS[] = {
@@ -1062,6 +1083,7 @@ static const int* INFO_REPLY_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_multicast,                      /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 
 
@@ -1075,6 +1097,7 @@ static const int* APP_ACK_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_reserved02,                     /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 /* Vendor specific: RTI */
 static const int* APP_ACK_CONF_FLAGS[] = {
@@ -1098,6 +1121,7 @@ static const int* HEARTBEAT_VIRTUAL_FLAGS[] = {
   &hf_rtps_flag_multiple_writers,               /* Bit 2 */
   &hf_rtps_flag_multiple_virtual_guids,         /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 /* Vendor specific: RTI */
 static const int* DATA_FRAG_FLAGS[] = {
@@ -1109,6 +1133,7 @@ static const int* DATA_FRAG_FLAGS[] = {
   &hf_rtps_flag_hash_key_rti,                   /* Bit 2 */
   &hf_rtps_flag_inline_qos_v2,                  /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 #if 0
 /* Vendor specific: RTI */
@@ -1121,6 +1146,7 @@ static const int* NACK_FLAGS[] = {
   &hf_rtps_flag_reserved04,                     /* Bit 2 */
   &hf_rtps_flag_final,                          /* Bit 1 */
   &hf_rtps_flag_endianness,                     /* Bit 0 */
+  NULL
 };
 #endif
 

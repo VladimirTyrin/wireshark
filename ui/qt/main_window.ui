@@ -303,6 +303,14 @@
      <addaction name="actionViewColorizeResetColorization"/>
      <addaction name="actionViewColorizeNewConversationRule"/>
     </widget>
+    <widget class="QMenu" name="menuInternals">
+     <property name="title">
+      <string>Internals</string>
+     </property>
+     <addaction name="actionViewInternalsConversationHashTables"/>
+     <addaction name="actionViewInternalsDissectorTables"/>
+     <addaction name="actionViewInternalsSupportedProtocols"/>
+    </widget>
     <addaction name="actionViewMainToolbar"/>
     <addaction name="actionViewFilterToolbar"/>
     <addaction name="actionViewWirelessToolbar"/>
@@ -327,7 +335,10 @@
     <addaction name="separator"/>
     <addaction name="actionViewResizeColumns"/>
     <addaction name="separator"/>
+    <addaction name="menuInternals"/>
+    <addaction name="separator"/>
     <addaction name="actionViewShowPacketInNewWindow"/>
+    <addaction name="actionViewReload_as_File_Format_or_Capture"/>
     <addaction name="actionViewReload"/>
    </widget>
    <widget class="QMenu" name="menuAnalyze">
@@ -530,6 +541,12 @@
      </property>
      <addaction name="actionTelephonyGSMPlaceholder"/>
     </widget>
+    <widget class="QMenu" name="menuLTE">
+     <property name="title">
+      <string>LTE</string>
+     </property>
+     <addaction name="actionTelephonyLTEPlaceholder"/>
+    </widget>
     <widget class="QMenu" name="menuMTP3">
      <property name="title">
       <string>MTP3</string>
@@ -539,7 +556,9 @@
     <addaction name="actionTelephonyVoipCalls"/>
     <addaction name="menuANSI"/>
     <addaction name="menuGSM"/>
+    <addaction name="actionTelephonyIax2StreamAnalysis"/>
     <addaction name="actionTelephonyISUPMessages"/>
+    <addaction name="menuLTE"/>
     <addaction name="menuMTP3"/>
     <addaction name="menuRTP"/>
     <addaction name="menuRTSP"/>
@@ -595,15 +614,15 @@
     <property name="title">
      <string>&amp;Wireless</string>
     </property>
-    <addaction name="actionATT_Server_Attributes"/>
-    <addaction name="actionDevices"/>
-    <addaction name="actionHCI_Summary"/>
+    <addaction name="actionBluetoothATT_Server_Attributes"/>
+    <addaction name="actionBluetoothDevices"/>
+    <addaction name="actionBluetoothHCI_Summary"/>
     <addaction name="separator"/>
     <addaction name="actionWirelessWlanStatistics"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
-     <string>Tools</string>
+     <string>&amp;Tools</string>
     </property>
     <addaction name="actionToolsPlaceholder"/>
    </widget>
@@ -780,6 +799,9 @@
   <action name="actionHelpContents">
    <property name="text">
     <string>&amp;Contents</string>
+   </property>
+   <property name="toolTip">
+    <string>Help contents</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -1077,6 +1099,14 @@
     <bool>true</bool>
    </property>
   </action>
+  <action name="actionViewReload_as_File_Format_or_Capture">
+   <property name="text">
+    <string>Reload as File Format/Capture</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+F</string>
+   </property>
+  </action>
   <action name="actionCaptureOptions">
    <property name="text">
     <string>&amp;Options…</string>
@@ -1108,6 +1138,9 @@
    </property>
    <property name="toolTip">
     <string>Refresh interfaces</string>
+   </property>
+   <property name="shortcut">
+    <string>F5</string>
    </property>
   </action>
   <action name="actionCaptureRestart">
@@ -1165,6 +1198,9 @@
    <property name="text">
     <string>Description</string>
    </property>
+   <property name="toolTip">
+    <string>Copy this item's description</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+Shift+D</string>
    </property>
@@ -1183,6 +1219,9 @@
    <property name="text">
     <string>Field Name</string>
    </property>
+   <property name="toolTip">
+    <string>Copy this item's field name</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+Shift+F</string>
    </property>
@@ -1190,6 +1229,9 @@
   <action name="actionEditCopyValue">
    <property name="text">
     <string>Value</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy this item's value</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+V</string>
@@ -1201,6 +1243,9 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+C</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy this item as a display filter</string>
    </property>
   </action>
   <action name="actionAnalyzeAAFSelected">
@@ -1993,6 +2038,9 @@
    <property name="text">
     <string>Zoom Out</string>
    </property>
+   <property name="toolTip">
+    <string>Shrink the main window text</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+-</string>
    </property>
@@ -2000,6 +2048,9 @@
   <action name="actionViewNormalSize">
    <property name="text">
     <string>Normal Size</string>
+   </property>
+   <property name="toolTip">
+    <string>Return the main window text to its normal size</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+0</string>
@@ -2320,6 +2371,30 @@
     <string>Show or hide the packet bytes</string>
    </property>
   </action>
+  <action name="actionViewInternalsConversationHashTables">
+   <property name="text">
+    <string>Conversation Hash Tables</string>
+   </property>
+   <property name="toolTip">
+    <string>Show each conversation hash table</string>
+   </property>
+  </action>
+  <action name="actionViewInternalsDissectorTables">
+   <property name="text">
+    <string>Dissector Tables</string>
+   </property>
+   <property name="toolTip">
+    <string>Show each dissector table and its entries</string>
+   </property>
+  </action>
+  <action name="actionViewInternalsSupportedProtocols">
+   <property name="text">
+    <string>Supported Protocols</string>
+   </property>
+   <property name="toolTip">
+    <string>Show the currently supported protocols and display filter fields</string>
+   </property>
+  </action>
   <action name="actionContextCopyBytesHexTextDump">
    <property name="text">
     <string>Bytes as Hex + ASCII Dump</string>
@@ -2368,6 +2443,30 @@
     <string>GSM MAP summary statistics</string>
    </property>
   </action>
+  <action name="actionTelephonyLteMacStatistics">
+   <property name="text">
+    <string>MAC Statistics</string>
+   </property>
+   <property name="toolTip">
+    <string>LTE MAC statistics</string>
+   </property>
+  </action>
+  <action name="actionTelephonyLteRlcStatistics">
+   <property name="text">
+    <string>RLC Statistics</string>
+   </property>
+   <property name="toolTip">
+    <string>LTE RLC statistics</string>
+   </property>
+  </action>
+  <action name="actionTelephonyLteRlcGraph">
+   <property name="text">
+    <string>RLC Graph</string>
+   </property>
+   <property name="toolTip">
+    <string>LTE RLC graph</string>
+   </property>
+  </action>
   <action name="actionTelephonyMtp3Summary">
    <property name="text">
     <string>MTP3 Summary</string>
@@ -2405,19 +2504,19 @@
     <string>Edit the packet list coloring rules.</string>
    </property>
   </action>
-  <action name="actionATT_Server_Attributes">
+  <action name="actionBluetoothATT_Server_Attributes">
    <property name="text">
     <string>Bluetooth ATT Server Attributes</string>
    </property>
   </action>
-  <action name="actionDevices">
+  <action name="actionBluetoothDevices">
    <property name="text">
-    <string>Devices</string>
+    <string>Bluetooth Devices</string>
    </property>
   </action>
-  <action name="actionHCI_Summary">
+  <action name="actionBluetoothHCI_Summary">
    <property name="text">
-    <string>HCI Summary</string>
+    <string>Bluetooth HCI Summary</string>
    </property>
   </action>
   <action name="actionViewShowPacketInNewWindow">
@@ -2508,6 +2607,14 @@
    </property>
    <property name="text">
     <string>No GSM statistics registered</string>
+   </property>
+  </action>
+  <action name="actionTelephonyLTEPlaceholder">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>No LTE statistics registered</string>
    </property>
   </action>
   <action name="actionTelephonyMTP3Placeholder">
@@ -2627,10 +2734,18 @@
   </action>
   <action name="actionTelephonyRTPStreamAnalysis">
    <property name="text">
-    <string>Analyze RTP Stream</string>
+    <string>Stream Analysis</string>
    </property>
    <property name="toolTip">
     <string>RTP Stream Analysis</string>
+   </property>
+  </action>
+  <action name="actionTelephonyIax2StreamAnalysis">
+   <property name="text">
+    <string>IAX2 Stream Analysis</string>
+   </property>
+   <property name="toolTip">
+    <string>IAX2 Stream Analysis</string>
    </property>
   </action>
   <action name="actionViewEditResolvedName">

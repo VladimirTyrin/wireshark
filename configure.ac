@@ -5,9 +5,9 @@
 #
 # Define variables for the components of the Wireshark version number.
 #
-m4_define([version_major], [1])
-m4_define([version_minor], [99])
-m4_define([version_micro], [9])
+m4_define([version_major], [2])
+m4_define([version_minor], [1])
+m4_define([version_micro], [0])
 m4_define([version_micro_extra], version_micro)
 m4_append([version_micro_extra], [])
 
@@ -59,7 +59,11 @@ AM_DISABLE_STATIC
 #
 # Checks for programs used in the main build process.
 #
-AC_PROG_CC
+AC_PROG_CC_STDC
+if test "$ac_cv_prog_cc_stdc" == "no"
+then
+	AC_MSG_ERROR([The C compiler does not support standard C])
+fi
 AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_CPP
@@ -108,7 +112,7 @@ fi
 AC_PATH_PROG(PERL, perl)
 
 # Check for Python.
-AC_PATH_PROGS(PYTHON, python, python3)
+AC_PATH_PROGS(PYTHON, python python3)
 if test ! -z "$PYTHON"; then
 	#
 	# OK, we found Python; is it Python 2.5 or later?
@@ -574,8 +578,8 @@ if test "x$with_gnutls" = "xyes"; then
   )
 
   if test "x$have_license_compatible_gnutls" != "xyes"; then
-    PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 1.2.0 gnutls < 3],
-      [ have_license_compatible_gnutls="yes" ] , [ echo "GnuTLS >= 1.2.0, < 3.0 not found " ]
+    PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 2.12.0 gnutls < 3],
+      [ have_license_compatible_gnutls="yes" ] , [ echo "GnuTLS >= 2.12.0, < 3.0 not found " ]
     )
   fi
 
@@ -603,9 +607,9 @@ AC_ARG_WITH([gcrypt],
   [ with_gcrypt="$withval"; want_gcrypt="yes" ], with_gcrypt="yes")
 
 if test "x$with_gcrypt" = "xyes"; then
-  AM_PATH_LIBGCRYPT(1.1.92,
+  AM_PATH_LIBGCRYPT(1.4.2,
 	[
-		echo "libgcrypt found, enabling ipsec decryption"
+		echo "libgcrypt found, enabling decryption for ipsec, ssl, etc."
 		AC_DEFINE(HAVE_LIBGCRYPT, 1, [Define to use libgcrypt])
 		gcrypt_message="yes"
 	]
@@ -613,7 +617,7 @@ if test "x$with_gcrypt" = "xyes"; then
 		if test x$libgcrypt_config_prefix != x ; then
 			AC_MSG_ERROR([[libgcrypt not found; install libgcrypt-devel package for your system]])
 		else
-			echo "libgcrypt not found, disabling ipsec decryption"
+			echo "libgcrypt not found, disabling decryption for ipsec, ssl, etc."
 			gcrypt_message="no"
 		fi
 
@@ -871,6 +875,7 @@ AC_ARG_ENABLE(extra-compiler-warnings,
 		# The following are for C and C++
 		#
 		AC_WIRESHARK_COMPILER_FLAGS_CHECK(-Wpedantic)
+		AC_WIRESHARK_COMPILER_FLAGS_CHECK(-Wno-variadic-macros)
 		#
 		# Various code blocks this one.
 		#
@@ -1279,15 +1284,16 @@ else
 	case "$host_os" in
 	hpux*)
 		#
-		# HP's ANSI C compiler; flags suggested by Jost Martin.
-		# "-Ae" for ANSI C plus extensions such as "long long".
-		# "+O2", for optimization.  XXX - works with "-g"?
+		# AC_PROG_CC_STDC should already have added whatever
+		# flags are necessary for ISO C - C99 if available,
+		# otherwise C89 - with extensions.
 		#
-		# HP's ANSI C++ compiler doesn't support "-Ae", but
-		# does support "+O2", at least according to the
-		# documentation I can find online.
+		# Add +O2, for optimization, as suggested by Jost Martin.
+		# XXX - works with "-g"?
 		#
-		CFLAGS="-Ae +O2 $CFLAGS"
+		# +O2 is supported both by the C and C++ compiler.
+		#
+		CFLAGS="+O2 $CFLAGS"
 		if test "$CC" = "$CC_FOR_BUILD"; then
 			#
 			# We're building the build tools with the same
@@ -1298,7 +1304,7 @@ else
 			CFLAGS_FOR_BUILD="-Ae +O2 $CFLAGS"
 		fi
 		CXXFLAGS="+O2 $CFLAGS"
-		AC_MSG_RESULT(HP ANSI C compiler - added -Ae +O2)
+		AC_MSG_RESULT(HP C/C++ compiler - added +O2)
 		;;
 	solaris*)
 		#
@@ -1559,7 +1565,7 @@ GTK2_MIN_VERSION=2.12.0
 AC_SUBST(GTK2_MIN_VERSION)
 GTK3_MIN_VERSION=3.0.0
 AC_SUBST(GTK3_MIN_VERSION)
-QT_MIN_VERSION=4.6.0
+QT_MIN_VERSION=4.7.0
 AC_SUBST(QT_MIN_VERSION)
 # GTK+ and Qt checks; we require GTK+ $GTK2_MIN_VERSION or later or
 # GTK3_MIN_VERSION or later or Qt $QT_MIN_VERSION or later.
@@ -2462,11 +2468,11 @@ AC_SUBST(LUA_CFLAGS)
 
 
 dnl portaudio check
-AC_MSG_CHECKING(whether to use libportaudio for the rtp_player)
+AC_MSG_CHECKING(whether to use libportaudio for the GTK+ RTP player)
 
 AC_ARG_WITH(portaudio,
   AC_HELP_STRING( [--with-portaudio@<:@=DIR@:>@],
-		  [use libportaudio (located in directory DIR, if supplied) for the rtp_player @<:@default=yes, if available@:>@]),
+		  [use libportaudio (located in directory DIR, if supplied) for the GTK+ RTP player @<:@default=yes, if available@:>@]),
 [
 	if test $withval = no
 	then
@@ -2491,7 +2497,7 @@ else
 	AC_MSG_RESULT(yes)
 	AC_WIRESHARK_LIBPORTAUDIO_CHECK
 	if test "x$want_portaudio" = "xno" ; then
-		AC_MSG_RESULT(libportaudio not found - disabling support for the rtp_player)
+		AC_MSG_RESULT(libportaudio not found - disabling support for the GTK+ RTP player)
 	fi
 fi
 AM_CONDITIONAL(HAVE_LIBPORTAUDIO, test x$want_portaudio = xyes)
@@ -3061,9 +3067,18 @@ else
 	RPMBUILD_WITH_ARGS="--without gtk2 --without gtk3"
 fi
 if test "x$have_qt" = "xyes" ; then
-	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt"
+	if test "$qt_version" -eq "5"; then
+		RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt5"
+	else
+		RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt"
+	fi
 else
-	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --without qt"
+	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --without qt --without qt5"
+fi
+if test "x$have_lua" = "xyes" ; then
+	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with lua"
+else
+	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --without lua"
 fi
 AC_SUBST(RPMBUILD_WITH_ARGS)
 
@@ -3301,6 +3316,12 @@ else
 	lua_message="no"
 fi
 
+if test "x$have_qt_multimedia_lib" = "xyes" ; then
+	qt_multimedia_message="yes"
+else
+	qt_multimedia_message="no"
+fi
+
 if test "x$want_portaudio" = "xyes" ; then
 	portaudio_message="yes"
 else
@@ -3373,7 +3394,8 @@ echo "                  Use dumpcap group : $dumpcap_group_message"
 echo "                        Use plugins : $have_plugins"
 echo "       Use external capture sources : $have_extcap"
 echo "                    Use Lua library : $lua_message"
-echo "                   Build rtp_player : $portaudio_message"
+echo "                Build Qt RTP player : $qt_multimedia_message"
+echo "              Build GTK+ RTP player : $portaudio_message"
 echo "             Build profile binaries : $enable_profile_build"
 echo "                   Use pcap library : $want_pcap"
 echo "                   Use zlib library : $zlib_message"

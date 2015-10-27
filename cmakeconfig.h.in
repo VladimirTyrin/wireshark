@@ -115,9 +115,6 @@
 /* Define to use kerberos */
 #cmakedefine HAVE_KERBEROS 1
 
-/* Define if krb5.h defines KEYTYPE_ARCFOUR_56 */
-#cmakedefine HAVE_KEYTYPE_ARCFOUR_56 1
-
 /* Define to use the libcap library */
 #cmakedefine HAVE_LIBCAP 1
 
@@ -381,8 +378,8 @@
 /* Define if we are using version of of the Portaudio library API */
 #cmakedefine PORTAUDIO_API_1 1
 
-/* Define if we have QtMultimediaWidgets */
-#cmakedefine QT_MULTIMEDIAWIDGETS_LIB 1
+/* Define if we have QtMultimedia */
+#cmakedefine QT_MULTIMEDIA_LIB 1
 
 /* Define if we have QtMacExtras */
 #cmakedefine QT_MACEXTRAS_LIB 1

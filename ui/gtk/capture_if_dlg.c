@@ -424,7 +424,7 @@ GtkWidget * capture_get_if_icon(interface_t *device)
     return pixbuf_to_widget(network_wired_pb_data);
 #ifdef HAVE_EXTCAP
   case IF_EXTCAP:
-#ifdef WIN32
+#ifdef _WIN32
     if (strncmp(device->friendly_name, "USBPcap", 7) == 0) {
       return pixbuf_to_widget(network_usb_pb_data);
     }
@@ -480,12 +480,12 @@ set_ip_addr_label(GSList *addr_list, GtkWidget *ip_lb, guint selected_ip_addr)
     switch (addr->ifat_type) {
 
     case IF_AT_IPv4:
-      SET_ADDRESS(&addr_address, AT_IPv4, 4, &addr->addr.ip4_addr);
+      set_address(&addr_address, AT_IPv4, 4, &addr->addr.ip4_addr);
       addr_str = (char*)address_to_str(NULL, &addr_address);
       break;
 
     case IF_AT_IPv6:
-      SET_ADDRESS(&addr_address, AT_IPv6, 16, addr->addr.ip6_addr);
+      set_address(&addr_address, AT_IPv6, 16, addr->addr.ip6_addr);
       addr_str = (char*)address_to_str(NULL, &addr_address);
       break;
 

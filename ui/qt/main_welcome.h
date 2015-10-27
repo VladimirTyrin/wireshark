@@ -40,6 +40,7 @@ class MainWelcome : public QFrame
     Q_OBJECT
 public:
     explicit MainWelcome(QWidget *parent = 0);
+    virtual ~MainWelcome();
     InterfaceTree *getInterfaceTree();
 
 protected:
@@ -53,11 +54,12 @@ private:
     // We may want to subclass it at some point.
     QListWidget *recent_files_;
 //    MWOverlay *overlay;
+    QMenu *recent_ctx_menu_;
 
 
 signals:
     void startCapture();
-    void recentFileActivated(QString& cfile);
+    void recentFileActivated(QString cfile);
     void pushFilterSyntaxStatus(const QString&);
     void popFilterSyntaxStatus();
     void captureFilterSyntaxChanged(bool valid);
@@ -74,6 +76,9 @@ private slots:
     void updateRecentFiles();
     void openRecentItem(QListWidgetItem *item);
     void changeEvent(QEvent* event);
+    void showRecentContextMenu(QPoint pos);
+    void showRecentFolder();
+    void copyRecentPath();
 };
 
 #endif // MAIN_WELCOME_H

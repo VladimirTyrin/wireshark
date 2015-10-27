@@ -426,41 +426,27 @@ selected_ptree_info_cb(GtkWidget *widget _U_, gpointer data _U_)
 
         proto_abbrev = proto_registrar_get_abbrev(field_id);
 
-        if (!proto_is_private(field_id)) {
-            /* ask the user if the wiki page really should be opened */
-            dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_OK_CANCEL,
-                    "%sOpen Wireshark Wiki page of protocol \"%s\"?%s\n"
-                    "\n"
-                    "This will open the \"%s\" related Wireshark Wiki page in your Web browser.\n"
-                    "\n"
-                    "The Wireshark Wiki is a collaborative approach to provide information "
-                    "about Wireshark in several ways (not limited to protocol specifics).\n"
-                    "\n"
-                    "This Wiki is new, so the page of the selected protocol "
-                    "may not exist and/or may not contain valuable information.\n"
-                    "\n"
-                    "As everyone can edit the Wiki and add new content (or extend existing), "
-                    "you are encouraged to add information if you can.\n"
-                    "\n"
-                    "Hint 1: If you are new to wiki editing, try out editing the Sandbox first!\n"
-                    "\n"
-                    "Hint 2: If you want to add a new protocol page, you should use the ProtocolTemplate, "
-                    "which will save you a lot of editing and will give a consistent look over the pages.",
-                    simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
-            simple_dialog_set_cb(dialog, selected_ptree_info_answered_cb, (gpointer)proto_abbrev);
-        } else {
-            /* appologize to the user that the wiki page cannot be opened */
-            simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-                    "%sCan't open Wireshark Wiki page of protocol \"%s\"%s\n"
-                    "\n"
-                    "This would open the \"%s\" related Wireshark Wiki page in your Web browser.\n"
-                    "\n"
-                    "Since this is a private protocol, such information is not available in "
-                    "a public wiki. Therefore this wiki entry is blocked.\n"
-                    "\n"
-                    "Sorry for the inconvenience.\n",
-                    simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
-        }
+        /* ask the user if the wiki page really should be opened */
+        dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_OK_CANCEL,
+                "%sOpen Wireshark Wiki page of protocol \"%s\"?%s\n"
+                "\n"
+                "This will open the \"%s\" related Wireshark Wiki page in your Web browser.\n"
+                "\n"
+                "The Wireshark Wiki is a collaborative approach to provide information "
+                "about Wireshark in several ways (not limited to protocol specifics).\n"
+                "\n"
+                "This Wiki is new, so the page of the selected protocol "
+                "may not exist and/or may not contain valuable information.\n"
+                "\n"
+                "As everyone can edit the Wiki and add new content (or extend existing), "
+                "you are encouraged to add information if you can.\n"
+                "\n"
+                "Hint 1: If you are new to wiki editing, try out editing the Sandbox first!\n"
+                "\n"
+                "Hint 2: If you want to add a new protocol page, you should use the ProtocolTemplate, "
+                "which will save you a lot of editing and will give a consistent look over the pages.",
+                simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
+        simple_dialog_set_cb(dialog, selected_ptree_info_answered_cb, (gpointer)proto_abbrev);
     }
 }
 
@@ -504,28 +490,14 @@ selected_ptree_ref_cb(GtkWidget *widget _U_, gpointer data _U_)
 
         proto_abbrev = proto_registrar_get_abbrev(field_id);
 
-        if (!proto_is_private(field_id)) {
-            /* ask the user if the wiki page really should be opened */
-            dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_OK_CANCEL,
-                    "%sOpen Wireshark filter reference page of protocol \"%s\"?%s\n"
-                    "\n"
-                    "This will open the \"%s\" related Wireshark filter reference page in your Web browser.\n"
-                    "\n",
-                    simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
-            simple_dialog_set_cb(dialog, selected_ptree_ref_answered_cb, (gpointer)proto_abbrev);
-        } else {
-            /* appologize to the user that the wiki page cannot be opened */
-            simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-                    "%sCan't open Wireshark filter reference page of protocol \"%s\"%s\n"
-                    "\n"
-                    "This would open the \"%s\" related Wireshark filter reference page in your Web browser.\n"
-                    "\n"
-                    "Since this is a private protocol, such information is not available on "
-                    "a public website. Therefore this filter entry is blocked.\n"
-                    "\n"
-                    "Sorry for the inconvenience.\n",
-                    simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
-        }
+        /* ask the user if the wiki page really should be opened */
+        dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_OK_CANCEL,
+                "%sOpen Wireshark filter reference page of protocol \"%s\"?%s\n"
+                "\n"
+                "This will open the \"%s\" related Wireshark filter reference page in your Web browser.\n"
+                "\n",
+                simple_dialog_primary_start(), proto_abbrev, simple_dialog_primary_end(), proto_abbrev);
+        simple_dialog_set_cb(dialog, selected_ptree_ref_answered_cb, (gpointer)proto_abbrev);
     }
 }
 
@@ -874,7 +846,7 @@ tree_view_selection_changed_cb(GtkTreeSelection *sel, gpointer user_data _U_)
         } else {
             /*
              * Don't show anything if the field name is zero-length;
-             * the pseudo-field for "proto_tree_add_text()" is such
+             * the pseudo-field for text-only items is such
              * a field, and we don't want "Text (text)" showing up
              * on the status line if you've selected such a field.
              *
@@ -886,10 +858,9 @@ tree_view_selection_changed_cb(GtkTreeSelection *sel, gpointer user_data _U_)
              * but we'd have to add checks for null pointers in some
              * places if we did that.
              *
-             * Or perhaps protocol tree items added with
-             * "proto_tree_add_text()" should have -1 as the field index,
-             * with no pseudo-field being used, but that might also
-             * require special checks for -1 to be added.
+             * Or perhaps text-only items should have -1 as the field
+             * index, with no pseudo-field being used, but that might
+             * also require special checks for -1 to be added.
              */
             statusbar_push_field_msg("%s", "");
         }
@@ -2442,11 +2413,11 @@ DIAG_ON(cast-qual)
     /* Only the static part of it will be read, as we don't have the gui now to fill the */
     /* recent lists which is done in the dynamic part. */
     /* We have to do this already here, so command line parameters can overwrite these values. */
-    recent_read_profile_static(&rf_path, &rf_open_errno);
-    if (rf_path != NULL && rf_open_errno != 0) {
+    if (!recent_read_profile_static(&rf_path, &rf_open_errno)) {
         simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
                       "Could not open recent file\n\"%s\": %s.",
                       rf_path, g_strerror(rf_open_errno));
+        g_free(rf_path);
     }
 
     if (recent.gui_fileopen_remembered_dir &&
@@ -3098,11 +3069,11 @@ DIAG_ON(cast-qual)
     create_main_window(pl_size, tv_size, bv_size, prefs_p);
 
     /* Read the dynamic part of the recent file, as we have the gui now ready for it. */
-    recent_read_dynamic(&rf_path, &rf_open_errno);
-    if (rf_path != NULL && rf_open_errno != 0) {
+    if (!recent_read_dynamic(&rf_path, &rf_open_errno)) {
         simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
                       "Could not open recent file\n\"%s\": %s.",
                       rf_path, g_strerror(rf_open_errno));
+        g_free(rf_path);
     }
 
     color_filters_enable(recent.packet_list_colorize);
@@ -3881,11 +3852,11 @@ void change_configuration_profile (const gchar *profile_name)
 
     (void) read_configuration_files (&gdp_path, &dp_path);
 
-    recent_read_profile_static(&rf_path, &rf_open_errno);
-    if (rf_path != NULL && rf_open_errno != 0) {
+    if (!recent_read_profile_static(&rf_path, &rf_open_errno)) {
         simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
             "Could not open common recent file\n\"%s\": %s.",
             rf_path, g_strerror(rf_open_errno));
+        g_free(rf_path);
     }
     if (recent.gui_fileopen_remembered_dir &&
         test_for_directory(recent.gui_fileopen_remembered_dir) == EISDIR) {

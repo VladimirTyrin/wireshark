@@ -103,6 +103,7 @@ if [ "$QT_VERSION" ]; then
     QT_MINOR_VERSION="`expr $QT_VERSION : '[0-9][0-9]*\.\([0-9][0-9]*\).*'`"
     QT_DOTDOT_VERSION="`expr $QT_VERSION : '[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*'`"
     QT_MAJOR_MINOR_VERSION=$QT_MAJOR_VERSION.$QT_MINOR_VERSION
+    QT_MAJOR_MINOR_DOTDOT_VERSION=$QT_MAJOR_VERSION.$QT_MINOR_VERSION.$QT_DOTDOT_VERSION
 fi
 
 # In case we want to build GTK *and* we don't have Apple's X11 SDK installed
@@ -365,7 +366,7 @@ install_cmake() {
             #    3) it can't be run from the command line;
             #
             # so we do it ourselves.
-	    #
+            #
             for i in ccmake cmake cmake-gui cmakexbuild cpack ctest
             do
                 sudo ln -s /Applications/CMake.app/Contents/bin/$i /usr/local/bin/$i
@@ -608,14 +609,31 @@ install_qt() {
         # What you get for this URL might just be a 302 Found reply, so use
         # -L so we get redirected.
         #
-        [ -f qt-opensource-mac-x64-clang-$QT_VERSION.dmg ] || curl -L -O http://download.qt.io/archive/qt/$QT_MAJOR_MINOR_VERSION/$QT_VERSION/qt-opensource-mac-x64-clang-$QT_VERSION.dmg || exit 1
-        sudo hdiutil attach qt-opensource-mac-x64-clang-$QT_VERSION.dmg || exit 1
+        if [ "$QT_MAJOR_VERSION" -ge 5 ]
+        then
+            QT_VOLUME=qt-opensource-mac-x64-clang-$QT_VERSION
+        else
+            QT_VOLUME=qt-opensource-mac-$QT_VERSION
+        fi
+        [ -f $QT_VOLUME.dmg ] || curl -L -O http://download.qt.io/archive/qt/$QT_MAJOR_MINOR_VERSION/$QT_MAJOR_MINOR_DOTDOT_VERSION/$QT_VOLUME.dmg || exit 1
+        sudo hdiutil attach $QT_VOLUME.dmg || exit 1
 
-        #
-        # Run the executable directly, so that we wait for it to finish.
-        #
-        /Volumes/qt-opensource-mac-x64-clang-$QT_VERSION/qt-opensource-mac-x64-clang-$QT_VERSION.app/Contents/MacOS/qt-opensource-mac-x64-clang-$QT_VERSION
-        sudo hdiutil detach /Volumes/qt-opensource-mac-x64-clang-$QT_VERSION
+        if [ "$QT_MAJOR_VERSION" -ge 5 ]
+        then
+            #
+            # Run the installer executable directly, so that we wait for
+            # it to finish.  Then unmount the volume.
+            #
+            /Volumes/$QT_VOLUME/$QT_VOLUME.app/Contents/MacOS/$QT_VOLUME
+            sudo hdiutil detach /Volumes/$QT_VOLUME
+        else
+            #
+            # Open the installer package; use -W, so that we wait for
+            # the installer to finish.  Then unmount the volume.
+            #
+            open -W "/Volumes/Qt $QT_MAJOR_MINOR_DOTDOT_VERSION/Qt.mpkg"
+            sudo hdiutil detach "/Volumes/Qt $QT_MAJOR_MINOR_DOTDOT_VERSION"
+        fi
 
         #
         # Versions 5.3.x through 5.5.0, at least, have bogus .pc files.
@@ -1234,7 +1252,7 @@ install_lua() {
         [ -f lua-$LUA_VERSION.tar.gz ] || curl -L -O http://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz || exit 1
         gzcat lua-$LUA_VERSION.tar.gz | tar xf - || exit 1
         cd lua-$LUA_VERSION
-        make $MAKE_BUILD_OPTS macosx || exit 1
+        make MYCFLAGS="$CFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" MYLDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" $MAKE_BUILD_OPTS macosx || exit 1
         $DO_MAKE_INSTALL || exit 1
         cd ..
         touch lua-$LUA_VERSION-done
@@ -1301,7 +1319,10 @@ install_portaudio() {
         # this build on an OS+Xcode with a pre-10.4 SDK; we don't
         # worry about the user requesting that.)
         #
-        CFLAGS="$CFLAGS -mmacosx-version-min=10.4 $SDKFLAGS" CXXFLAGS="$CXXFLAGS -mmacosx-version-min=10.4 $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" ./configure --disable-mac-universal || exit 1
+        # Explicitly disable deprecation, so the damn thing will build
+        # on El Capitan with Xcode 7.
+        #
+        CFLAGS="$CFLAGS -Wno-deprecated-declarations -mmacosx-version-min=10.4 $SDKFLAGS" CXXFLAGS="$CXXFLAGS -mmacosx-version-min=10.4 $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" ./configure --disable-mac-universal || exit 1
         make $MAKE_BUILD_OPTS || exit 1
         $DO_MAKE_INSTALL || exit 1
         cd ..
@@ -2211,10 +2232,22 @@ then
         # ages ago, but don't remember what I did.
         #
         GLIB_VERSION=2.16.3
-        CAIRO_VERSION=1.6.4
-        ATK_VERSION=1.24.0
-        PANGO_VERSION=1.20.2
-        GTK_VERSION=2.12.9
+        if [ "$CAIRO_VERSION" ]
+        then
+            CAIRO_VERSION=1.6.4
+        fi
+        if [ "$ATK_VERSION" ]
+        then
+            ATK_VERSION=1.24.0
+        fi
+        if [ "$PANGO_VERSION" ]
+        then
+            PANGO_VERSION=1.20.2
+        fi
+        if [ "$GTK_VERSION" ]
+        then
+            GTK_VERSION=2.12.9
+        fi
 
         #
         # That version of GTK+ includes gdk-pixbuf.

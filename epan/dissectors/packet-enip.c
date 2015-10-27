@@ -36,7 +36,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
-#include <epan/dissector_filters.h>
+#include <epan/color_dissector_filters.h>
 #include <epan/prefs.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
@@ -92,6 +92,7 @@ void proto_reg_handoff_enip(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_enip = -1;
+static int proto_enipio = -1;
 static int proto_cipsafety = -1;
 
 static int hf_enip_command = -1;
@@ -847,7 +848,7 @@ enip_io_conv_valid(packet_info *pinfo)
            ((conn->TransportClass_trigger & CI_TRANSPORT_CLASS_MASK) == 1));
 }
 
-static const gchar *
+static gchar *
 enip_io_conv_filter(packet_info *pinfo)
 {
    char      *buf;
@@ -893,7 +894,7 @@ enip_exp_conv_valid(packet_info *pinfo)
            ((conn->TransportClass_trigger & CI_TRANSPORT_CLASS_MASK) == 3));
 }
 
-static const gchar *
+static gchar *
 enip_exp_conv_filter(packet_info *pinfo)
 {
    char      *buf;
@@ -2394,9 +2395,6 @@ dissect_enipio(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    /* Make entries in Protocol column and Info column on summary display */
    col_set_str(pinfo->cinfo, COL_PROTOCOL, "ENIP");
 
-   /* In the interest of speed, if "tree" is NULL, don't do any work not
-   necessary to generate protocol tree items. */
-
    /* create display subtree for the protocol */
    ti = proto_tree_add_item(tree, proto_enip, tvb, 0, -1, ENC_NA );
 
@@ -2917,7 +2915,7 @@ proto_register_enip(void)
 
       { &hf_tcpip_ic_subnet_mask,
         { "Subnet Mask", "cip.tcpip.subnet_mask",
-          FT_IPv4, BASE_NONE, NULL, 0,
+          FT_IPv4, BASE_NETMASK, NULL, 0,
           NULL, HFILL }},
 
       { &hf_tcpip_ic_gateway,
@@ -3691,6 +3689,7 @@ proto_register_enip(void)
 
    /* Register the protocol name and description */
    proto_enip = proto_register_protocol("EtherNet/IP (Industrial Protocol)", "ENIP", "enip");
+   proto_enipio = proto_register_protocol("EtherNet/IP I/O", "ENIP I/O", "enip_io");
 
    new_register_dissector("enip", dissect_enip_tcp, proto_enip);
 
@@ -3737,8 +3736,8 @@ proto_register_enip(void)
    proto_register_field_array(proto_dlr, hfdlr, array_length(hfdlr));
    proto_register_subtree_array(ettdlr, array_length(ettdlr));
 
-   register_dissector_filter("ENIP IO", enip_io_conv_valid, enip_io_conv_filter);
-   register_dissector_filter("ENIP Explicit", enip_exp_conv_valid, enip_exp_conv_filter);
+   register_color_conversation_filter("enip", "ENIP IO", enip_io_conv_valid, enip_io_conv_filter);
+   register_color_conversation_filter("enip", "ENIP Explicit", enip_exp_conv_valid, enip_exp_conv_filter);
 
    register_decode_as(&enip_da);
 
@@ -3761,7 +3760,7 @@ proto_reg_handoff_enip(void)
    dissector_add_uint("udp.port", ENIP_ENCAP_PORT, enip_udp_handle);
 
    /* Register for EtherNet/IP IO data (UDP) */
-   enipio_handle = create_dissector_handle(dissect_enipio, proto_enip);
+   enipio_handle = create_dissector_handle(dissect_enipio, proto_enipio);
    dissector_add_uint("udp.port", ENIP_IO_PORT, enipio_handle);
 
    /* Find dissector for data packet */

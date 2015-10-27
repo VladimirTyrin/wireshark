@@ -90,6 +90,8 @@ public:
 
     virtual QMenu *createPopupMenu();
 
+    void gotoFrame(int packet_num);
+
 protected:
     bool eventFilter(QObject *obj, QEvent *event);
     void keyPressEvent(QKeyEvent *event);
@@ -167,7 +169,7 @@ private:
     void exportDissections(export_type_e export_type);
 
     void fileAddExtension(QString &file_name, int file_type, bool compressed);
-    bool testCaptureFileClose(bool from_quit = false, QString& before_what = *new QString());
+    bool testCaptureFileClose(bool from_quit = false, QString before_what = QString());
     void captureStop();
 
     void initMainToolbarIcons();
@@ -213,9 +215,9 @@ public slots:
      * @return True on success, false on failure.
      */
     // XXX We might want to return a cf_read_status_t or a CaptureFile.
-    bool openCaptureFile(QString& cf_path, QString& display_filter, unsigned int type);
-    bool openCaptureFile(QString& cf_path = *new QString(), QString& display_filter = *new QString()) { return openCaptureFile(cf_path, display_filter, WTAP_TYPE_AUTO); }
-    void filterPackets(QString& new_filter = *new QString(), bool force = false);
+    bool openCaptureFile(QString cf_path, QString display_filter, unsigned int type);
+    bool openCaptureFile(QString cf_path = QString(), QString display_filter = QString()) { return openCaptureFile(cf_path, display_filter, WTAP_TYPE_AUTO); }
+    void filterPackets(QString new_filter = QString(), bool force = false);
     void updateForUnsavedChanges();
     void layoutPanes();
     void applyRecentPaneGeometry();
@@ -243,6 +245,9 @@ public slots:
 
     void filterExpressionsChanged();
 
+    void launchRLCGraph(bool channelKnown, guint16 ueid, guint8 rlcMode,
+                        guint16 channelType, guint16 channelId, guint8 direction);
+
 private slots:
     // Manually connected slots (no "on_<object>_<signal>").
 
@@ -257,6 +262,7 @@ private slots:
 
     void loadWindowGeometry();
     void saveWindowGeometry();
+    void mainStackChanged(int);
     void updateRecentFiles();
     void recentActionTriggered();
     void setMenusForSelectedPacket();
@@ -272,13 +278,13 @@ private slots:
     void addDynamicMenus();
     void reloadDynamicMenus();
     void addExternalMenus();
+    QMenu * searchSubMenu(QString objectName);
 
     void startInterfaceCapture(bool valid);
 
     void setFeaturesEnabled(bool enabled = true);
 
     void on_actionDisplayFilterExpression_triggered();
-    void addDisplayFilterButton(QString df_text);
     void displayFilterButtonClicked();
 
     // Handle FilterAction signals
@@ -389,10 +395,15 @@ private slots:
     void on_actionViewColorizeNewConversationRule_triggered();
     void on_actionViewResizeColumns_triggered();
 
+    void on_actionViewInternalsConversationHashTables_triggered();
+    void on_actionViewInternalsDissectorTables_triggered();
+    void on_actionViewInternalsSupportedProtocols_triggered();
+
     void openPacketDialog(bool from_reference = false);
     void on_actionViewShowPacketInNewWindow_triggered();
     void on_actionContextShowLinkedPacketInNewWindow_triggered();
     void on_actionViewReload_triggered();
+    void on_actionViewReload_as_File_Format_or_Capture_triggered();
 
     void on_actionGoGoToPacket_triggered();
     void on_actionGoGoToLinkedPacket_triggered();
@@ -529,8 +540,14 @@ private slots:
     void openVoipCallsDialog(bool all_flows = false);
     void on_actionTelephonyVoipCalls_triggered();
     void on_actionTelephonyGsmMapSummary_triggered();
-    void on_actionTelephonyMtp3Summary_triggered();
+    void statCommandLteMacStatistics(const char *arg, void *);
+    void on_actionTelephonyLteRlcStatistics_triggered();
+    void statCommandLteRlcStatistics(const char *arg, void *);
+    void on_actionTelephonyLteMacStatistics_triggered();
+    void on_actionTelephonyLteRlcGraph_triggered();
+    void on_actionTelephonyIax2StreamAnalysis_triggered();
     void on_actionTelephonyISUPMessages_triggered();
+    void on_actionTelephonyMtp3Summary_triggered();
     void on_actionTelephonyRTPStreams_triggered();
     void on_actionTelephonyRTPStreamAnalysis_triggered();
     void on_actionTelephonyRTSPPacketCounter_triggered();
@@ -538,9 +555,9 @@ private slots:
     void on_actionTelephonyUCPMessages_triggered();
     void on_actionTelephonySipFlows_triggered();
 
-    void on_actionATT_Server_Attributes_triggered();
-    void on_actionDevices_triggered();
-    void on_actionHCI_Summary_triggered();
+    void on_actionBluetoothATT_Server_Attributes_triggered();
+    void on_actionBluetoothDevices_triggered();
+    void on_actionBluetoothHCI_Summary_triggered();
 
     void externalMenuItem_triggered();
 

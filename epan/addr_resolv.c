@@ -167,14 +167,6 @@ typedef struct {
 } subnet_length_entry_t;
 
 
-#if 0
-typedef struct serv_port {
-    gchar            *udp_name;
-    gchar            *tcp_name;
-    gchar            *sctp_name;
-    gchar            *dccp_name;
-} serv_port_t;
-#endif
 /* hash table used for IPX network lookup */
 
 /* XXX - check goodness of hash function */
@@ -620,80 +612,63 @@ wmem_utoa(wmem_allocator_t *allocator, guint port)
     return bp;
 }
 
-
-static gchar
-*serv_name_lookup(const guint port, const port_type proto)
+static const gchar *
+_serv_name_lookup(port_type proto, guint port, serv_port_t **value_ret)
 {
     serv_port_t *serv_port_table;
-    gchar *name;
 
     serv_port_table = (serv_port_t *)g_hash_table_lookup(serv_port_hashtable, &port);
 
-    if (serv_port_table) {
-        /* Set which table we should look up port in */
-        switch(proto) {
-            case PT_UDP:
-                if (serv_port_table->udp_name) {
-                    return serv_port_table->udp_name;
-                }
-                break;
-            case PT_TCP:
-                if (serv_port_table->tcp_name) {
-                    return serv_port_table->tcp_name;
-                }
-                break;
-            case PT_SCTP:
-                if (serv_port_table->sctp_name) {
-                    return serv_port_table->sctp_name;
-                }
-                break;
-            case PT_DCCP:
-                if (serv_port_table->dccp_name) {
-                    return serv_port_table->dccp_name;
-                }
-                break;
-            default:
-                /* not yet implemented */
-                return NULL;
-                /*NOTREACHED*/
-        } /* proto */
-    }
+    if (value_ret != NULL)
+        *value_ret = serv_port_table;
 
-    /* getservbyport() was used here but it was to expensive, if the functionality is desired
-     * it would be better to pre parse etc/services or C:\Windows\System32\drivers\etc at
-     * startup
-     */
-    name = (gchar*)g_malloc(16);
-    guint32_to_str_buf(port, name, 16);
+    if (serv_port_table == NULL)
+        return NULL;
+
+    switch (proto) {
+        case PT_UDP:
+            return serv_port_table->udp_name;
+        case PT_TCP:
+            return serv_port_table->tcp_name;
+        case PT_SCTP:
+            return serv_port_table->sctp_name;
+        case PT_DCCP:
+            return serv_port_table->dccp_name;
+        default:
+            break;
+    }
+    return NULL;
+}
+
+const gchar *
+try_serv_name_lookup(port_type proto, guint port)
+{
+    return _serv_name_lookup(proto, port, NULL);
+}
+
+const gchar *
+serv_name_lookup(port_type proto, guint port)
+{
+    serv_port_t *serv_port_table = NULL;
+    const char *name;
+    guint *key;
+
+    name = _serv_name_lookup(proto, port, &serv_port_table);
+    if (name != NULL)
+        return name;
 
     if (serv_port_table == NULL) {
-        int *key;
-
-        key = (int *)g_new(int, 1);
+        key = (guint *)g_new(guint, 1);
         *key = port;
-        serv_port_table = g_new0(serv_port_t,1);
+        serv_port_table = g_new0(serv_port_t, 1);
         g_hash_table_insert(serv_port_hashtable, key, serv_port_table);
     }
-    switch(proto) {
-        case PT_UDP:
-            serv_port_table->udp_name = name;
-            break;
-        case PT_TCP:
-            serv_port_table->tcp_name = name;
-            break;
-        case PT_SCTP:
-            serv_port_table->sctp_name = name;
-            break;
-        case PT_DCCP:
-            serv_port_table->dccp_name = name;
-            break;
-        default:
-            return NULL;
-            /*NOTREACHED*/
+    if (serv_port_table->numeric == NULL) {
+        serv_port_table->numeric = g_strdup_printf("%u", port);
     }
-    return name;
 
-} /* serv_name_lookup */
+    return serv_port_table->numeric;
+}
 
 static void
 destroy_serv_port(gpointer data)
@@ -703,55 +678,28 @@ destroy_serv_port(gpointer data)
     g_free(table->tcp_name);
     g_free(table->sctp_name);
     g_free(table->dccp_name);
+    g_free(table->numeric);
     g_free(table);
 }
 
 static void
 initialize_services(void)
 {
-#ifdef _WIN32
-    char *hostspath;
-    char *sysroot;
-    static char rootpath_nt[] = "\\system32\\drivers\\etc\\services";
-#endif /* _WIN32 */
-
-    /* the hash table won't ignore duplicates, so use the personal path first */
     g_assert(serv_port_hashtable == NULL);
     serv_port_hashtable = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, destroy_serv_port);
-
-/* Read the system services file first */
-#ifdef _WIN32
-
-    sysroot = getenv_utf8("WINDIR");
-    if (sysroot != NULL) {
-        /*
-         * The file should be under WINDIR.
-         * If this is Windows NT (NT 4.0,2K,XP,Server2K3), it's in
-         * %WINDIR%\system32\drivers\etc\services.
-         */
-        hostspath = g_strconcat(sysroot, rootpath_nt, NULL);
-        parse_services_file(hostspath);
-        g_free(hostspath);
-    }
-#else
-        parse_services_file("/etc/services");
-
-#endif /*  _WIN32 */
-
-    /* set personal services path */
-    if (g_pservices_path == NULL)
-        g_pservices_path = get_persconffile_path(ENAME_SERVICES, FALSE);
-
-    parse_services_file(g_pservices_path);
 
     /* Compute the pathname of the services file. */
     if (g_services_path == NULL) {
         g_services_path = get_datafile_path(ENAME_SERVICES);
     }
-
     parse_services_file(g_services_path);
 
-} /* initialize_services */
+    /* Compute the pathname of the personal services file */
+    if (g_pservices_path == NULL) {
+        g_pservices_path = get_persconffile_path(ENAME_SERVICES, FALSE);
+    }
+    parse_services_file(g_pservices_path);
+}
 
 static void
 service_name_lookup_cleanup(void)
@@ -770,10 +718,10 @@ fill_dummy_ip4(const guint addr, hashipv4_t* volatile tp)
 {
     subnet_entry_t subnet_entry;
 
-    if ((tp->flags & DUMMY_ADDRESS_ENTRY) == DUMMY_ADDRESS_ENTRY)
+    if (tp->flags & DUMMY_ADDRESS_ENTRY)
         return; /* already done */
 
-    tp->flags = tp->flags | DUMMY_ADDRESS_ENTRY; /* Overwrite if we get async DNS reply */
+    tp->flags |= DUMMY_ADDRESS_ENTRY; /* Overwrite if we get async DNS reply */
 
     /* Do we have a subnet for this address? */
     subnet_entry = subnet_lookup(addr);
@@ -877,7 +825,7 @@ host_lookup(const guint addr, gboolean *found)
         if ((tp->flags & DUMMY_AND_RESOLVE_FLGS) ==  DUMMY_ADDRESS_ENTRY) {
             goto try_resolv;
         }
-        if ((tp->flags & DUMMY_ADDRESS_ENTRY) == DUMMY_ADDRESS_ENTRY) {
+        if (tp->flags & DUMMY_ADDRESS_ENTRY) {
             *found = FALSE;
         }
         return tp;
@@ -885,7 +833,7 @@ host_lookup(const guint addr, gboolean *found)
 
 try_resolv:
     if (gbl_resolv_flags.network_name && gbl_resolv_flags.use_external_net_name_resolver) {
-        tp->flags = tp->flags|TRIED_RESOLVE_ADDRESS;
+        tp->flags |= TRIED_RESOLVE_ADDRESS;
 
 #ifdef ASYNC_DNS
         if (gbl_resolv_flags.concurrent_dns &&
@@ -984,7 +932,7 @@ host_lookup6(const struct e_in6_addr *addr, gboolean *found)
         if ((tp->flags & DUMMY_AND_RESOLVE_FLGS) ==  DUMMY_ADDRESS_ENTRY) {
             goto try_resolv;
         }
-        if ((tp->flags & DUMMY_ADDRESS_ENTRY) == DUMMY_ADDRESS_ENTRY) {
+        if (tp->flags & DUMMY_ADDRESS_ENTRY) {
             *found = FALSE;
         }
         return tp;
@@ -993,7 +941,7 @@ host_lookup6(const struct e_in6_addr *addr, gboolean *found)
 try_resolv:
     if (gbl_resolv_flags.network_name &&
             gbl_resolv_flags.use_external_net_name_resolver) {
-        tp->flags = tp->flags|TRIED_RESOLVE_ADDRESS;
+        tp->flags |= TRIED_RESOLVE_ADDRESS;
 #ifdef INET6
 #ifdef HAVE_C_ARES
         if ((gbl_resolv_flags.concurrent_dns) &&
@@ -1010,7 +958,7 @@ try_resolv:
             if ((tp->flags & DUMMY_ADDRESS_ENTRY) == 0) {
                 g_strlcpy(tp->name, tp->ip6, MAXNAMELEN);
                 ip6_to_str_buf(addr, tp->name);
-                tp->flags = tp->flags | DUMMY_ADDRESS_ENTRY;
+                tp->flags |= DUMMY_ADDRESS_ENTRY;
             }
             return tp;
         }
@@ -1037,7 +985,7 @@ try_resolv:
 
     /* unknown host or DNS timeout */
     if ((tp->flags & DUMMY_ADDRESS_ENTRY) == 0) {
-        tp->flags = tp->flags | DUMMY_ADDRESS_ENTRY;
+        tp->flags |= DUMMY_ADDRESS_ENTRY;
         g_strlcpy(tp->name, tp->ip6, MAXNAMELEN);
     }
     *found = FALSE;
@@ -1630,7 +1578,7 @@ eth_addr_resolve(hashether_t *tp) {
         }
 
         /* No match whatsoever. */
-        SET_ADDRESS(&ether_addr, AT_ETHER, 6, addr);
+        set_address(&ether_addr, AT_ETHER, 6, addr);
         address_to_str_buf(&ether_addr, tp->resolved_name, MAXNAMELEN);
         tp->status = HASHETHER_STATUS_RESOLVED_DUMMY;
         return tp;
@@ -2352,7 +2300,7 @@ subnet_entry_set(guint32 subnet_addr, const guint32 mask_length, const gchar* na
     tp->next = NULL;
     tp->addr = subnet_addr;
     /* Clear DUMMY_ADDRESS_ENTRY */
-    tp->flags = tp->flags & 0xfe; /*Never used again...*/
+    tp->flags &= ~DUMMY_ADDRESS_ENTRY; /*Never used again...*/
     g_strlcpy(tp->name, name, MAXNAMELEN); /* This is longer than subnet names can actually be */
     have_subnet_entry = TRUE;
 }
@@ -2651,7 +2599,7 @@ get_hostname(const guint addr)
     if (!gbl_resolv_flags.network_name)
         return tp->ip;
 
-    tp->flags = tp->flags | RESOLVED_ADDRESS_USED;
+    tp->flags |= RESOLVED_ADDRESS_USED;
 
     return tp->name;
 }
@@ -2671,7 +2619,7 @@ get_hostname6(const struct e_in6_addr *addr)
     if (!gbl_resolv_flags.network_name)
         return tp->ip6;
 
-    tp->flags = tp->flags | RESOLVED_ADDRESS_USED;
+    tp->flags |= RESOLVED_ADDRESS_USED;
 
     return tp->name;
 }
@@ -2700,7 +2648,7 @@ add_ipv4_name(const guint addr, const gchar *name)
         g_strlcpy(tp->name, name, MAXNAMELEN);
         new_resolved_objects = TRUE;
     }
-    tp->flags = tp->flags | TRIED_RESOLVE_ADDRESS;
+    tp->flags |= TRIED_RESOLVE_ADDRESS;
 
 } /* add_ipv4_name */
 
@@ -2731,7 +2679,7 @@ add_ipv6_name(const struct e_in6_addr *addrp, const gchar *name)
         g_strlcpy(tp->name, name, MAXNAMELEN);
         new_resolved_objects = TRUE;
     }
-    tp->flags = tp->flags | TRIED_RESOLVE_ADDRESS;
+    tp->flags |= TRIED_RESOLVE_ADDRESS;
 
 } /* add_ipv6_name */
 
@@ -2961,7 +2909,7 @@ udp_port_to_display(wmem_allocator_t *allocator, guint port)
         return wmem_utoa(allocator, port);
     }
 
-    return wmem_strdup(allocator, serv_name_lookup(port, PT_UDP));
+    return wmem_strdup(allocator, serv_name_lookup(PT_UDP, port));
 
 } /* udp_port_to_display */
 
@@ -2973,7 +2921,7 @@ dccp_port_to_display(wmem_allocator_t *allocator, guint port)
         return wmem_utoa(allocator, port);
     }
 
-    return wmem_strdup(allocator, serv_name_lookup(port, PT_DCCP));
+    return wmem_strdup(allocator, serv_name_lookup(PT_DCCP, port));
 
 } /* dccp_port_to_display */
 
@@ -2985,7 +2933,7 @@ tcp_port_to_display(wmem_allocator_t *allocator, guint port)
         return wmem_utoa(allocator, port);
     }
 
-    return wmem_strdup(allocator, serv_name_lookup(port, PT_TCP));
+    return wmem_strdup(allocator, serv_name_lookup(PT_TCP, port));
 
 } /* tcp_port_to_display */
 
@@ -2997,9 +2945,37 @@ sctp_port_to_display(wmem_allocator_t *allocator, guint port)
         return wmem_utoa(allocator, port);
     }
 
-    return wmem_strdup(allocator, serv_name_lookup(port, PT_SCTP));
+    return wmem_strdup(allocator, serv_name_lookup(PT_SCTP, port));
 
 } /* sctp_port_to_display */
+
+gchar *
+port_with_resolution_to_str(wmem_allocator_t *scope, port_type proto, guint port)
+{
+    const gchar *port_str;
+
+    if (!gbl_resolv_flags.transport_name || (proto == PT_NONE)) {
+        /* No name resolution support, just return port string */
+        return wmem_strdup_printf(scope, "%u", port);
+    }
+    port_str = serv_name_lookup(proto, port);
+    g_assert(port_str);
+    return wmem_strdup_printf(scope, "%s (%u)", port_str, port);
+}
+
+int
+port_with_resolution_to_str_buf(gchar *buf, gulong buf_size, port_type proto, guint port)
+{
+    const gchar *port_str;
+
+    if (!gbl_resolv_flags.transport_name || (proto == PT_NONE)) {
+        /* No name resolution support, just return port string */
+        return g_snprintf(buf, buf_size, "%u", port);
+    }
+    port_str = serv_name_lookup(proto, port);
+    g_assert(port_str);
+    return g_snprintf(buf, buf_size, "%s (%u)", port_str, port);
+}
 
 gchar *
 get_ether_name(const guint8 *addr)

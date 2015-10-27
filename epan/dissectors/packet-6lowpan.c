@@ -184,6 +184,10 @@ void proto_reg_handoff_6lowpan(void);
 /* 6LoWPAN First Fragment Header */
 #define LOWPAN_FRAG_DGRAM_SIZE_BITS     11
 
+/* Uncompressed IPv6 Option types */
+#define IP6OPT_PAD1                     0x00
+#define IP6OPT_PADN                     0x01
+
 /* Compressed port number offset. */
 #define LOWPAN_PORT_8BIT_OFFSET         0xf000
 #define LOWPAN_PORT_12BIT_OFFSET        (LOWPAN_PORT_8BIT_OFFSET | 0xb0)
@@ -232,6 +236,7 @@ static int hf_6lowpan_nhc_ext_eid = -1;
 static int hf_6lowpan_nhc_ext_nh = -1;
 static int hf_6lowpan_nhc_ext_next = -1;
 static int hf_6lowpan_nhc_ext_length = -1;
+static int hf_6lowpan_nhc_ext_reserved = -1;
 
 /* NHC UDP compression header fields. */
 static int hf_6lowpan_nhc_udp_checksum = -1;
@@ -289,6 +294,7 @@ static gint ett_6lopwan_traffic_class = -1;
 static expert_field ei_6lowpan_hc1_more_bits = EI_INIT;
 static expert_field ei_6lowpan_illegal_dest_addr_mode = EI_INIT;
 static expert_field ei_6lowpan_bad_ipv6_header_length = EI_INIT;
+static expert_field ei_6lowpan_bad_ext_header_length = EI_INIT;
 
 /* Subdissector handles. */
 static dissector_handle_t       handle_6lowpan;
@@ -449,6 +455,9 @@ static lowpan_context_data  lowpan_context_local;
 static lowpan_context_data  lowpan_context_default;
 static const gchar *        lowpan_context_prefs[LOWPAN_CONTEXT_MAX];
 
+/* Preferences */
+static gboolean rfc4944_short_address_format = FALSE;
+
 /* Helper macro to convert a bit offset/length into a byte count. */
 #define BITS_TO_BYTE_LEN(bitoff, bitlen)    ((bitlen)?(((bitlen) + ((bitoff)&0x07) + 7) >> 3):(0))
 
@@ -491,6 +500,7 @@ static void         dissect_6lowpan_unknown     (tvbuff_t *tvb, packet_info *pin
 static gboolean     lowpan_dlsrc_to_ifcid   (packet_info *pinfo, guint8 *ifcid);
 static gboolean     lowpan_dldst_to_ifcid   (packet_info *pinfo, guint8 *ifcid);
 static void         lowpan_addr16_to_ifcid  (guint16 addr, guint8 *ifcid);
+static void         lowpan_addr16_with_panid_to_ifcid(guint16 panid, guint16 addr, guint8 *ifcid);
 static tvbuff_t *   lowpan_reassemble_ipv6  (tvbuff_t *tvb, struct ip6_hdr * ipv6, struct lowpan_nhdr * nhdr_list);
 static guint8       lowpan_parse_nhc_proto  (tvbuff_t *tvb, gint offset);
 
@@ -672,7 +682,7 @@ lowpan_context_free(gpointer data)
  *      lowpan_addr16_to_ifcid
  *  DESCRIPTION
  *      Converts a short address to in interface identifier as
- *      per rfc 4944 section 6.
+ *      per rfc 6282 section 3.2.2.
  *  PARAMETERS
  *      addr            ; 16-bit short address.
  *      ifcid           ; interface identifier (output).
@@ -693,6 +703,34 @@ lowpan_addr16_to_ifcid(guint16 addr, guint8 *ifcid)
     ifcid[6] = (addr >> 8) & 0xff;
     ifcid[7] = (addr >> 0) & 0xff;
 } /* lowpan_addr16_to_ifcid  */
+
+/*FUNCTION:------------------------------------------------------
+ *  NAME
+ *      lowpan_addr16_with_panid_to_ifcid
+ *  DESCRIPTION
+ *      Converts a short address to in interface identifier as
+ *      per rfc 4944 section 6.
+ *  PARAMETERS
+ *      panid           ; 16-bit PAN ID.
+ *      addr            ; 16-bit short address.
+ *      ifcid           ; interface identifier (output).
+ *  RETURNS
+ *      void            ;
+ *---------------------------------------------------------------
+ */
+static void
+lowpan_addr16_with_panid_to_ifcid(guint16 panid, guint16 addr, guint8 *ifcid)
+{
+    /* Note: The PANID is used in building the IID following RFC 2464 section 4. */
+    ifcid[0] = (panid >> 8) & 0xfd; /* the U/L bit must be cleared. */
+    ifcid[1] = (panid >> 0) & 0xff;
+    ifcid[2] = 0x00;
+    ifcid[3] = 0xff;
+    ifcid[4] = 0xfe;
+    ifcid[5] = 0x00;
+    ifcid[6] = (addr >> 8) & 0xff;
+    ifcid[7] = (addr >> 0) & 0xff;
+} /* lowpan_addr16_with_panid_to_ifcid  */
 
 /*FUNCTION:------------------------------------------------------
  *  NAME
@@ -725,7 +763,14 @@ lowpan_dlsrc_to_ifcid(packet_info *pinfo, guint8 *ifcid)
     hints = (ieee802154_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
                 proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
     if (hints) {
-        lowpan_addr16_to_ifcid(hints->src16, ifcid);
+
+        /* Convert the 16-bit short address to an IID using the PAN ID (RFC 4944) or not depending on the preference */
+        if (rfc4944_short_address_format) {
+            lowpan_addr16_with_panid_to_ifcid(hints->src_pan, hints->src16, ifcid);
+        } else {
+            lowpan_addr16_to_ifcid(hints->src16, ifcid);
+        }
+
         return TRUE;
     } else {
         /* Failed to find a link-layer source address. */
@@ -764,7 +809,14 @@ lowpan_dldst_to_ifcid(packet_info *pinfo, guint8 *ifcid)
     hints = (ieee802154_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
                 proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
     if (hints) {
-        lowpan_addr16_to_ifcid(hints->dst16, ifcid);
+
+        /* Convert the 16-bit short address to an IID using the PAN ID (RFC 4944) or not depending on the preference */
+        if (rfc4944_short_address_format) {
+            lowpan_addr16_with_panid_to_ifcid(hints->src_pan, hints->dst16, ifcid);
+        } else {
+            lowpan_addr16_to_ifcid(hints->dst16, ifcid);
+        }
+
         return TRUE;
     } else {
         /* Failed to find a link-layer destination address. */
@@ -943,12 +995,12 @@ dissect_6lowpan_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 static int
 dissect_6lowpan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    proto_tree *volatile    lowpan_tree = NULL;
-    proto_item *volatile    lowpan_root = NULL;
-    tvbuff_t *              next = tvb;
+    proto_tree *lowpan_tree = NULL;
+    proto_item *lowpan_root = NULL;
+    tvbuff_t   *next = tvb;
     /* Interface identifier of the encapsulating layer. */
-    guint8                  src_iid[LOWPAN_IFC_ID_LEN];
-    guint8                  dst_iid[LOWPAN_IFC_ID_LEN];
+    guint8      src_iid[LOWPAN_IFC_ID_LEN];
+    guint8      dst_iid[LOWPAN_IFC_ID_LEN];
 
     /* Get the interface identifiers from the encapsulating layer. */
     lowpan_dlsrc_to_ifcid(pinfo, src_iid);
@@ -1163,7 +1215,7 @@ dissect_6lowpan_hc1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint dg
     /* Display the source address. */
     if (tree) {
         proto_tree_add_ipv6(tree, hf_6lowpan_source, tvb, offset>>3,
-                BITS_TO_BYTE_LEN(offset, (bit_offset-offset)), (guint8 *)&ipv6.ip6_src);
+                BITS_TO_BYTE_LEN(offset, (bit_offset-offset)), &ipv6.ip6_src);
     }
     /*
      * Do not set the address columns until after defragmentation, since we have
@@ -1195,7 +1247,7 @@ dissect_6lowpan_hc1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint dg
     /* Display the destination address. */
     if (tree) {
         proto_tree_add_ipv6(tree, hf_6lowpan_dest, tvb, offset>>3,
-                BITS_TO_BYTE_LEN(offset, (bit_offset-offset)), (guint8 *)&ipv6.ip6_dst);
+                BITS_TO_BYTE_LEN(offset, (bit_offset-offset)), &ipv6.ip6_dst);
     }
     /*
      * Do not set the address columns until after defragmentation, since we have
@@ -1611,13 +1663,13 @@ dissect_6lowpan_iphc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint d
 
     /* Display the source IPv6 address. */
     if (tree) {
-        proto_tree_add_ipv6(tree, hf_6lowpan_source, tvb, offset, length, (guint8 *)&ipv6.ip6_src);
+        proto_tree_add_ipv6(tree, hf_6lowpan_source, tvb, offset, length, &ipv6.ip6_src);
     }
     /* Add information about where the context came from. */
     /* TODO: We should display the prefix length too. */
     if (tree && sctx->plen) {
         proto_item *ti;
-        ti = proto_tree_add_ipv6(iphc_tree, hf_6lowpan_iphc_sctx_prefix, tvb, 0, 0, (guint8 *)&sctx->prefix);
+        ti = proto_tree_add_ipv6(iphc_tree, hf_6lowpan_iphc_sctx_prefix, tvb, 0, 0, &sctx->prefix);
         PROTO_ITEM_SET_GENERATED(ti);
         if ( sctx->frame ) {
             ti = proto_tree_add_uint(iphc_tree, hf_6lowpan_iphc_sctx_origin, tvb, 0, 0, sctx->frame);
@@ -1738,13 +1790,13 @@ dissect_6lowpan_iphc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint d
 
     /* Display the destination IPv6 address. */
     if (tree) {
-        proto_tree_add_ipv6(tree, hf_6lowpan_dest, tvb, offset, length, (guint8 *)&ipv6.ip6_dst);
+        proto_tree_add_ipv6(tree, hf_6lowpan_dest, tvb, offset, length, &ipv6.ip6_dst);
     }
     /* Add information about where the context came from. */
     /* TODO: We should display the prefix length too. */
     if (tree && dctx->plen) {
         proto_item *ti;
-        ti = proto_tree_add_ipv6(iphc_tree, hf_6lowpan_iphc_dctx_prefix, tvb, 0, 0, (guint8 *)&dctx->prefix);
+        ti = proto_tree_add_ipv6(iphc_tree, hf_6lowpan_iphc_dctx_prefix, tvb, 0, 0, &dctx->prefix);
         PROTO_ITEM_SET_GENERATED(ti);
         if ( dctx->frame ) {
             ti = proto_tree_add_uint(iphc_tree, hf_6lowpan_iphc_dctx_origin, tvb, 0, 0, dctx->frame);
@@ -1835,7 +1887,7 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
         /* Create a tree for the IPv6 extension header. */
         if (tree) {
             nhc_tree = proto_tree_add_subtree(tree, tvb, offset, 2, ett_6lowpan_nhc_ext, &ti, "IPv6 extension header");
-            /* Display the NHC-UDP pattern. */
+            /* Display the IPv6 Extension Header NHC ID pattern. */
             proto_tree_add_bits_item(nhc_tree, hf_6lowpan_nhc_pattern, tvb, offset<<3, LOWPAN_NHC_PATTERN_EXT_BITS, ENC_BIG_ENDIAN);
         }
 
@@ -1873,6 +1925,7 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
         guint8          ext_hlen;
         guint8          ext_len;
         guint8          ext_proto;
+        proto_item      *ti_ext_len = NULL;
 
         /* Parse the IPv6 extension header protocol. */
         ext_proto = lowpan_parse_nhc_proto(tvb, offset);
@@ -1880,7 +1933,7 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
         /* Create a tree for the IPv6 extension header. */
         if (tree) {
             nhc_tree = proto_tree_add_subtree(tree, tvb, offset, 2, ett_6lowpan_nhc_ext, NULL, "IPv6 extension header");
-            /* Display the NHC-UDP pattern. */
+            /* Display the IPv6 Extension Header NHC ID pattern. */
             proto_tree_add_bits_item(nhc_tree, hf_6lowpan_nhc_pattern, tvb, offset<<3, LOWPAN_NHC_PATTERN_EXT_BITS, ENC_BIG_ENDIAN);
         }
 
@@ -1908,13 +1961,14 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
             ext_hlen = 1;
             length = (guint8)sizeof(struct ip6_frag);
             ext_len = length - ext_hlen;
+
+            proto_tree_add_uint(nhc_tree, hf_6lowpan_nhc_ext_reserved, tvb, offset, 1, tvb_get_guint8(tvb, offset));
+
         } else {
             /* Get and display the extension header length. */
             ext_hlen = (guint8)sizeof(struct ip6_ext);
             ext_len = tvb_get_guint8(tvb, offset);
-            if (tree) {
-                proto_tree_add_uint(nhc_tree, hf_6lowpan_nhc_ext_length, tvb, offset, 1, ext_len);
-            }
+            ti_ext_len = proto_tree_add_uint(nhc_tree, hf_6lowpan_nhc_ext_length, tvb, offset, 1, ext_len);
             offset += 1;
 
             /* Compute the length of the extension header padded to an 8-byte alignment. */
@@ -1953,12 +2007,33 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
             return nhdr;
         }
 
-        /* Display the extension header using the data dissector. */
-        call_dissector(data_handle, tvb_new_subset_length(tvb, offset, ext_len), pinfo, nhc_tree);
+        if (ext_proto == IP_PROTO_FRAGMENT) {
+            /* Display the extension header using the data dissector. */
+            call_dissector(data_handle, tvb_new_subset_length(tvb, offset+1, ext_len-1), pinfo, nhc_tree);
+        } else {
+            /* Display the extension header using the data dissector. */
+            call_dissector(data_handle, tvb_new_subset_length(tvb, offset, ext_len), pinfo, nhc_tree);
+        }
 
         /* Copy the extension header into the struct. */
         tvb_memcpy(tvb, LOWPAN_NHDR_DATA(nhdr) + ext_hlen, offset, ext_len);
         offset += ext_len;
+
+        /* Add padding option */
+        if (length > ext_hlen + ext_len) {
+            guint8 padding = length - (ext_hlen + ext_len);
+            guint8 *pad_ptr = LOWPAN_NHDR_DATA(nhdr) + ext_hlen + ext_len;
+            if (ext_proto != IP_PROTO_HOPOPTS && ext_proto != IP_PROTO_DSTOPTS) {
+                expert_add_info(pinfo, ti_ext_len, &ei_6lowpan_bad_ext_header_length);
+            }
+            if (padding == 1) {
+                pad_ptr[0] = IP6OPT_PAD1;
+            } else {
+                pad_ptr[0] = IP6OPT_PADN;
+                pad_ptr[1] = padding - 2;
+                /* No need to write pad data, as buffer is zero-initialised */
+            }
+        }
 
         if (ext_flags & LOWPAN_NHC_EXT_NHDR) {
             /*
@@ -1999,7 +2074,7 @@ dissect_6lowpan_iphc_nhc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gi
         /* Create a tree for the UDP header. */
         if (tree) {
             nhc_tree = proto_tree_add_subtree(tree, tvb, 0, 1, ett_6lowpan_nhc_udp, NULL, "UDP header compression");
-            /* Display the NHC-UDP pattern. */
+            /* Display the UDP NHC ID pattern. */
             proto_tree_add_bits_item(nhc_tree, hf_6lowpan_nhc_pattern, tvb, offset<<3, LOWPAN_NHC_PATTERN_UDP_BITS, ENC_BIG_ENDIAN);
         }
 
@@ -2198,6 +2273,8 @@ dissect_6lowpan_mesh(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8
     const guint8 *      src_ifcid;
     const guint8 *      dst_ifcid;
 
+    ieee802154_hints_t  *hints;
+
     /* Create a tree for the mesh header. */
     mesh_tree = proto_tree_add_subtree(tree, tvb, offset, 0, ett_6lowpan_mesh, &ti, "Mesh Header");
 
@@ -2241,14 +2318,25 @@ dissect_6lowpan_mesh(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8
             proto_tree_add_uint(mesh_tree, hf_6lowpan_mesh_orig16, tvb, offset, 2, addr16);
         }
         ifcid = (guint8 *)wmem_alloc(pinfo->pool, 8);
-        lowpan_addr16_to_ifcid(addr16, ifcid);
+
+        /* Lookup the IEEE 802.15.4 addressing hints wanting RFC 2464 compatibility. */
+        hints = (ieee802154_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
+                                proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
+
+        /* Convert the 16-bit short address to an IID using the PAN ID (RFC 4944) or not depending on the preference and the presence of hints from lower layers */
+        if (hints && rfc4944_short_address_format) {
+            lowpan_addr16_with_panid_to_ifcid(hints->src_pan, addr16, ifcid);
+        } else {
+            lowpan_addr16_to_ifcid(addr16, ifcid);
+        }
+
         src_ifcid = ifcid;
         /* Update source IID */
         memcpy(siid, src_ifcid, LOWPAN_IFC_ID_LEN);
         offset += 2;
     }
-    SET_ADDRESS(&pinfo->src,  AT_EUI64, 8, src_ifcid);
-    SET_ADDRESS(&pinfo->net_src,  AT_EUI64, 8, src_ifcid);
+    set_address(&pinfo->src,  AT_EUI64, 8, src_ifcid);
+    set_address(&pinfo->net_src,  AT_EUI64, 8, src_ifcid);
 
     /* Get and display the destination address. */
     if (!(mesh_header & LOWPAN_MESH_HEADER_F)) {
@@ -2270,14 +2358,25 @@ dissect_6lowpan_mesh(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8
             proto_tree_add_uint(mesh_tree, hf_6lowpan_mesh_dest16, tvb, offset, 2, addr16);
         }
         ifcid = (guint8 *)wmem_alloc(pinfo->pool, 8);
-        lowpan_addr16_to_ifcid(addr16, ifcid);
+
+        /* Lookup the IEEE 802.15.4 addressing hints wanting RFC 2464 compatibility. */
+        hints = (ieee802154_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
+                                proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
+
+        /* Convert the 16-bit short address to an IID using the PAN ID (RFC 4944) or not depending on the preference and the presence of hints from lower layers */
+        if (hints && rfc4944_short_address_format) {
+            lowpan_addr16_with_panid_to_ifcid(hints->src_pan, addr16, ifcid);
+        } else {
+            lowpan_addr16_to_ifcid(addr16, ifcid);
+        }
+
         dst_ifcid = ifcid;
         /* Update destination IID */
         memcpy(diid, dst_ifcid, LOWPAN_IFC_ID_LEN);
         offset += 2;
     }
-    SET_ADDRESS(&pinfo->dst,  AT_EUI64, 8, dst_ifcid);
-    SET_ADDRESS(&pinfo->net_dst,  AT_EUI64, 8, dst_ifcid);
+    set_address(&pinfo->dst,  AT_EUI64, 8, dst_ifcid);
+    set_address(&pinfo->net_dst,  AT_EUI64, 8, dst_ifcid);
 
     /* Adjust the mesh header length. */
     if (tree) {
@@ -2647,6 +2746,9 @@ proto_register_6lowpan(void)
         { &hf_6lowpan_nhc_ext_length,
           { "Header length",                  "6lowpan.nhc.ext.length",
             FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+        { &hf_6lowpan_nhc_ext_reserved,
+          { "Reserved octet",                  "6lowpan.nhc.ext.reserved",
+            FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
 
         /* NHC UDP header fields. */
         { &hf_6lowpan_nhc_udp_checksum,
@@ -2796,6 +2898,7 @@ proto_register_6lowpan(void)
         { &ei_6lowpan_hc1_more_bits, { "6lowpan.hc1_more_bits", PI_MALFORMED, PI_ERROR, "HC1 more bits expected for illegal next header type.", EXPFILL }},
         { &ei_6lowpan_illegal_dest_addr_mode, { "6lowpan.illegal_dest_addr_mode", PI_MALFORMED, PI_ERROR, "Illegal destination address mode", EXPFILL }},
         { &ei_6lowpan_bad_ipv6_header_length, { "6lowpan.bad_ipv6_header_length", PI_MALFORMED, PI_ERROR, "Length is less than IPv6 header length", EXPFILL }},
+        { &ei_6lowpan_bad_ext_header_length, { "6lowpan.bad_ext_header_length", PI_MALFORMED, PI_ERROR, "Extension header not 8-octet aligned", EXPFILL }},
     };
 
     int         i;
@@ -2822,6 +2925,12 @@ proto_register_6lowpan(void)
 
     /* Register preferences. */
     prefs_module = prefs_register_protocol(proto_6lowpan, prefs_6lowpan_apply);
+
+    prefs_register_bool_preference(prefs_module, "rfc4944_short_address_format",
+                                   "Derive IID according to RFC 4944",
+                                   "Derive IID from a short 16-bit address according to RFC 4944 (using the PAN ID).",
+                                   &rfc4944_short_address_format);
+
     for (i = 0; i < LOWPAN_CONTEXT_MAX; i++) {
         char *pref_name, *pref_title;
 
@@ -2898,7 +3007,7 @@ prefs_6lowpan_apply(void)
         g_strlcpy(prefix_buf, lowpan_context_prefs[i], 48);
         if ((prefix_str = strtok(prefix_buf, "/")) == NULL) continue;
         if ((prefix_len_str = strtok(NULL, "/")) == NULL) continue;
-        if (sscanf(prefix_len_str, "%d", &prefix_len) != 1) continue;
+        if (sscanf(prefix_len_str, "%u", &prefix_len) != 1) continue;
         if (!str_to_ip6(prefix_str, &prefix)) continue;
         /* Set the prefix */
         lowpan_context_insert(i, IEEE802154_BCAST_PAN, prefix_len, &prefix, 0);

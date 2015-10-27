@@ -81,11 +81,11 @@ set(WIRETAP_FILES
 	wtap.c
 )
 
-if (WERROR)
+if (WERROR_COMMON_FLAGS)
 	set_source_files_properties(
 		${WIRETAP_FILES}
 		PROPERTIES
-		COMPILE_FLAGS -Werror
+		COMPILE_FLAGS ${WERROR_COMMON_FLAGS}
 	)
 endif()
 
@@ -110,7 +110,7 @@ add_library(wiretap ${LINK_MODE_LIB}
 	${CMAKE_BINARY_DIR}/image/wiretap.rc
 )
 
-set(FULL_SO_VERSION "0.0.9")
+set(FULL_SO_VERSION "0.0.0")
 
 set_target_properties(wiretap PROPERTIES
 	COMPILE_DEFINITIONS "WS_BUILD_DLL"

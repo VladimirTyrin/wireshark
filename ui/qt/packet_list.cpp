@@ -42,7 +42,7 @@
 #include "ui/recent.h"
 #include "ui/recent_utils.h"
 #include "ui/ui_util.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 #include "ui/util.h"
 
 #include "wsutil/str_util.h"
@@ -136,6 +136,7 @@ packet_list_select_last_row(void)
 gboolean
 packet_list_select_row_from_data(frame_data *fdata_needle)
 {
+    gbl_cur_packet_list->packetListModel()->flushVisibleRows();
     int row = gbl_cur_packet_list->packetListModel()->visibleIndexOf(fdata_needle);
     if (row >= 0) {
         gbl_cur_packet_list->setCurrentIndex(gbl_cur_packet_list->packetListModel()->index(row,0));
@@ -255,6 +256,7 @@ PacketList::PacketList(QWidget *parent) :
     setItemsExpandable(false);
     setRootIsDecorated(false);
     setSortingEnabled(true);
+    setUniformRowHeights(true);
     setAccessibleName("Packet list");
     setItemDelegateForColumn(0, &related_packet_delegate_);
 
@@ -375,6 +377,7 @@ PacketList::PacketList(QWidget *parent) :
     gbl_cur_packet_list = this;
 
     connect(packet_list_model_, SIGNAL(goToPacket(int)), this, SLOT(goToPacket(int)));
+    connect(packet_list_model_, SIGNAL(itemHeightChanged(const QModelIndex&)), this, SLOT(updateRowHeights(const QModelIndex&)));
     connect(wsApp, SIGNAL(addressResolutionChanged()), this, SLOT(redrawVisiblePackets()));
 
     header()->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -572,9 +575,7 @@ int PacketList::sizeHintForColumn(int column) const
         // on OS X and Linux. We might want to add Q_OS_... #ifdefs accordingly.
         size_hint = itemDelegateForColumn(column)->sizeHint(viewOptions(), QModelIndex()).width();
     }
-    packet_list_model_->setSizeHintEnabled(false);
     size_hint += QTreeView::sizeHintForColumn(column); // Decoration padding
-    packet_list_model_->setSizeHintEnabled(true);
     return size_hint;
 }
 
@@ -614,18 +615,22 @@ void PacketList::initHeaderContextMenu()
     }
 }
 
+void PacketList::drawCurrentPacket()
+{
+    QModelIndex current_index = currentIndex();
+    setCurrentIndex(QModelIndex());
+    if (current_index.isValid()) {
+        setCurrentIndex(current_index);
+    }
+}
+
 // Redraw the packet list and detail. Called from many places.
 // XXX We previously re-selected the packet here, but that seems to cause
 // automatic scrolling problems.
 void PacketList::redrawVisiblePackets() {
-    if (!cap_file_) return;
-
-    if (cap_file_->edt && cap_file_->edt->tree) {
-        proto_tree_->fillProtocolTree(cap_file_->edt->tree);
-    }
-
     update();
     header()->update();
+    drawCurrentPacket();
 }
 
 // prefs.col_list has changed.
@@ -636,10 +641,9 @@ void PacketList::columnsChanged()
     prefs.num_cols = g_list_length(prefs.col_list);
     col_cleanup(&cap_file_->cinfo);
     build_column_format_array(&cap_file_->cinfo, prefs.num_cols, FALSE);
-    packet_list_model_->recreateVisibleRows(); // Calls PacketListRecord::resetColumns
     setColumnVisibility();
     create_far_overlay_ = true;
-    redrawVisiblePackets();
+    packet_list_model_->resetColumns();
 }
 
 // Fields have changed, update custom columns
@@ -648,6 +652,7 @@ void PacketList::fieldsChanged(capture_file *cf)
     prefs.num_cols = g_list_length(prefs.col_list);
     col_cleanup(&cf->cinfo);
     build_column_format_array(&cf->cinfo, prefs.num_cols, FALSE);
+    // call packet_list_model_->resetColumns() ?
 }
 
 // Column widths should
@@ -728,6 +733,14 @@ void PacketList::setAutoScroll(bool enabled)
     }
 }
 
+// Called when we finish reading, reloading, rescanning, and retapping
+// packets.
+void PacketList::captureFileReadFinished()
+{
+    packet_list_model_->flushVisibleRows();
+    packet_list_model_->dissectIdle(true);
+}
+
 void PacketList::freeze()
 {
     setUpdatesEnabled(false);
@@ -799,10 +812,10 @@ bool PacketList::contextMenuActive()
     return ctx_column_ >= 0 ? true : false;
 }
 
-const QString &PacketList::getFilterFromRowAndColumn()
+QString PacketList::getFilterFromRowAndColumn()
 {
     frame_data *fdata;
-    QString &filter = *new QString();
+    QString filter;
     int row = currentIndex().row();
 
     if (!cap_file_ || !packet_list_model_ || ctx_column_ < 0 || ctx_column_ >= cap_file_->cinfo.num_cols) return filter;
@@ -888,7 +901,7 @@ void PacketList::setPacketComment(QString new_comment)
 {
     int row = currentIndex().row();
     frame_data *fdata;
-    gchar *new_packet_comment = new_comment.toUtf8().data();
+    gchar *new_packet_comment;
 
     if (!cap_file_ || !packet_list_model_) return;
 
@@ -899,9 +912,12 @@ void PacketList::setPacketComment(QString new_comment)
     /* Check if we are clearing the comment */
     if(new_comment.isEmpty()) {
         new_packet_comment = NULL;
+    } else {
+        new_packet_comment = qstring_strdup(new_comment);
     }
 
     cf_set_user_packet_comment(cap_file_, fdata, new_packet_comment);
+    g_free(new_packet_comment);
 
     redrawVisiblePackets();
 }
@@ -949,12 +965,6 @@ void PacketList::setMonospaceFont(const QFont &mono_font)
 {
     setFont(mono_font);
     header()->setFont(wsApp->font());
-
-    // qtreeview.cpp does something similar in Qt 5 so this *should* be
-    // safe...
-    int row_height = itemDelegate()->sizeHint(viewOptions(), QModelIndex()).height();
-    packet_list_model_->setMonospaceFont(mono_font, row_height);
-    redrawVisiblePackets();
 }
 
 void PacketList::goNextPacket(void) {
@@ -994,6 +1004,7 @@ void PacketList::goLastPacket(void) {
 
 // XXX We can jump to the wrong packet if a display filter is applied
 void PacketList::goToPacket(int packet) {
+    if (!cf_goto_frame(cap_file_, packet)) return;
     int row = packet_list_model_->packetNumberToRow(packet);
     if (row >= 0) {
         setCurrentIndex(packet_list_model_->index(row, 0));
@@ -1058,6 +1069,13 @@ void PacketList::unsetAllTimeReferences()
     if (!cap_file_ || !packet_list_model_) return;
     packet_list_model_->unsetAllFrameRefTime();
     create_far_overlay_ = true;
+}
+
+void PacketList::applyTimeShift()
+{
+    packet_list_model_->applyTimeShift();
+    redrawVisiblePackets();
+    // XXX emit packetDissectionChanged(); ?
 }
 
 void PacketList::showHeaderMenu(QPoint pos)
@@ -1221,6 +1239,22 @@ void PacketList::sectionMoved(int, int, int)
     }
 
     wsApp->emitAppSignal(WiresharkApplication::ColumnsChanged);
+}
+
+void PacketList::updateRowHeights(const QModelIndex &ih_index)
+{
+    QStyleOptionViewItem option = viewOptions();
+    int max_height = 0;
+
+    // One of our columns increased the maximum row height. Find out which one.
+    for (int col = 0; col < packet_list_model_->columnCount(); col++) {
+        QSize size_hint = itemDelegate()->sizeHint(option, packet_list_model_->index(ih_index.row(), col));
+        max_height = qMax(max_height, size_hint.height());
+    }
+
+    if (max_height > 0) {
+        packet_list_model_->setMaximiumRowHeight(max_height);
+    }
 }
 
 void PacketList::copySummary()

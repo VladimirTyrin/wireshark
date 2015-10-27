@@ -232,7 +232,7 @@ void t38_add_address(packet_info *pinfo,
                 return;
         }
 
-        SET_ADDRESS(&null_addr, AT_NONE, 0, NULL);
+        set_address(&null_addr, AT_NONE, 0, NULL);
 
         /*
          * Check if the ip address and port combination is not
@@ -428,7 +428,7 @@ init_t38_info_conv(packet_info *pinfo)
 	p_t38_conv = NULL;
 
 	/* Use existing packet info if available */
-	 p_t38_packet_conv = (t38_conv *)p_get_proto_data(wmem_file_scope(), pinfo, proto_t38, 0);
+	p_t38_packet_conv = (t38_conv *)p_get_proto_data(wmem_file_scope(), pinfo, proto_t38, 0);
 
 
 	/* find the conversation used for Reassemble and Setup Info */
@@ -445,38 +445,38 @@ init_t38_info_conv(packet_info *pinfo)
 		conversation_set_dissector(p_conv, t38_udp_handle);
 	}
 
+	p_t38_conv = (t38_conv *)conversation_get_proto_data(p_conv, proto_t38);
+
+	/* create the conversation if it doesn't exist */
+	if (!p_t38_conv) {
+		p_t38_conv = wmem_new(wmem_file_scope(), t38_conv);
+		p_t38_conv->setup_method[0] = '\0';
+		p_t38_conv->setup_frame_number = 0;
+
+		p_t38_conv->src_t38_info.reass_ID = 0;
+		p_t38_conv->src_t38_info.reass_start_seqnum = -1;
+		p_t38_conv->src_t38_info.reass_data_type = 0;
+		p_t38_conv->src_t38_info.last_seqnum = -1;
+		p_t38_conv->src_t38_info.packet_lost = 0;
+		p_t38_conv->src_t38_info.burst_lost = 0;
+		p_t38_conv->src_t38_info.time_first_t4_data = 0;
+		p_t38_conv->src_t38_info.additional_hdlc_data_field_counter = 0;
+		p_t38_conv->src_t38_info.seqnum_prev_data_field = -1;
+
+		p_t38_conv->dst_t38_info.reass_ID = 0;
+		p_t38_conv->dst_t38_info.reass_start_seqnum = -1;
+		p_t38_conv->dst_t38_info.reass_data_type = 0;
+		p_t38_conv->dst_t38_info.last_seqnum = -1;
+		p_t38_conv->dst_t38_info.packet_lost = 0;
+		p_t38_conv->dst_t38_info.burst_lost = 0;
+		p_t38_conv->dst_t38_info.time_first_t4_data = 0;
+		p_t38_conv->dst_t38_info.additional_hdlc_data_field_counter = 0;
+		p_t38_conv->dst_t38_info.seqnum_prev_data_field = -1;
+
+		conversation_add_proto_data(p_conv, proto_t38, p_t38_conv);
+	}
+
 	if (!p_t38_packet_conv) {
-		p_t38_conv = (t38_conv *)conversation_get_proto_data(p_conv, proto_t38);
-
-		/* create the conversation if it doen't exist */
-		if (!p_t38_conv) {
-			p_t38_conv = wmem_new(wmem_file_scope(), t38_conv);
-			p_t38_conv->setup_method[0] = '\0';
-			p_t38_conv->setup_frame_number = 0;
-
-			p_t38_conv->src_t38_info.reass_ID = 0;
-			p_t38_conv->src_t38_info.reass_start_seqnum = -1;
-			p_t38_conv->src_t38_info.reass_data_type = 0;
-			p_t38_conv->src_t38_info.last_seqnum = -1;
-			p_t38_conv->src_t38_info.packet_lost = 0;
-			p_t38_conv->src_t38_info.burst_lost = 0;
-			p_t38_conv->src_t38_info.time_first_t4_data = 0;
-			p_t38_conv->src_t38_info.additional_hdlc_data_field_counter = 0;
-			p_t38_conv->src_t38_info.seqnum_prev_data_field = -1;
-
-			p_t38_conv->dst_t38_info.reass_ID = 0;
-			p_t38_conv->dst_t38_info.reass_start_seqnum = -1;
-			p_t38_conv->dst_t38_info.reass_data_type = 0;
-			p_t38_conv->dst_t38_info.last_seqnum = -1;
-			p_t38_conv->dst_t38_info.packet_lost = 0;
-			p_t38_conv->dst_t38_info.burst_lost = 0;
-			p_t38_conv->dst_t38_info.time_first_t4_data = 0;
-			p_t38_conv->dst_t38_info.additional_hdlc_data_field_counter = 0;
-			p_t38_conv->dst_t38_info.seqnum_prev_data_field = -1;
-
-			conversation_add_proto_data(p_conv, proto_t38, p_t38_conv);
-		}
-
 		/* copy the t38 conversation info to the packet t38 conversation */
 		p_t38_packet_conv = wmem_new(wmem_file_scope(), t38_conv);
 		g_strlcpy(p_t38_packet_conv->setup_method, p_t38_conv->setup_method, MAX_T38_SETUP_METHOD_SIZE);
@@ -488,7 +488,7 @@ init_t38_info_conv(packet_info *pinfo)
 		p_add_proto_data(wmem_file_scope(), pinfo, proto_t38, 0, p_t38_packet_conv);
 	}
 
-	if (ADDRESSES_EQUAL(&p_conv->key_ptr->addr1, &pinfo->net_src)) {
+	if (addresses_equal(&p_conv->key_ptr->addr1, &pinfo->net_src)) {
 		p_t38_conv_info = &(p_t38_conv->src_t38_info);
 		p_t38_packet_conv_info = &(p_t38_packet_conv->src_t38_info);
 	} else {

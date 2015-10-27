@@ -45,7 +45,8 @@
 # Default configuration:
 #
 # enable: 1
-# svn_client: 1
+# git_client: 0
+# svn_client: 0
 # tortoise_svn: 0
 # format: git %Y%m%d%H%M%S
 # pkg_enable: 1
@@ -80,14 +81,14 @@ my $print_vcs = 0;
 my $set_version = 0;
 my $set_release = 0;
 my %version_pref = (
-	"version_major" => 1,
-	"version_minor" => 99,
-	"version_micro" => 9,
+	"version_major" => 2,
+	"version_minor" => 1,
+	"version_micro" => 0,
 	"version_build" => 0,
 
 	"enable"        => 1,
 	"git_client"    => 0,	# set if .git found and .git/svn not found
-	"svn_client"    => 1,
+	"svn_client"    => 0,	# set if .svn found
 	"tortoise_svn"  => 0,
 	"format"        => "git %Y%m%d%H%M%S",
 
@@ -115,8 +116,6 @@ sub read_repo_info {
 	my $in_entries = 0;
 	my $svn_name;
 	my $repo_version;
-	my $repo_root = undef;
-	my $repo_url = undef;
 	my $do_hack = 1;
 	my $info_source = "Unknown";
 
@@ -130,6 +129,7 @@ sub read_repo_info {
 	} elsif (-d "$srcdir/.svn" or -d "$srcdir/../.svn") {
 		$info_source = "Command line (svn info)";
 		$info_cmd = "svn info $srcdir";
+		$version_pref{"svn_client"} = 1;
 	} elsif (-d "$srcdir/.git/svn") {
 		$info_source = "Command line (git-svn)";
 		$info_cmd = "(cd $srcdir; git svn info)";
@@ -177,11 +177,6 @@ sub read_repo_info {
 				$commit_id = $parts[-1];
 			}
 
-			chomp($line = qx{git --git-dir=$srcdir/.git ls-remote --get-url origin});
-			if (defined($line)) {
-				$repo_url = $line;
-			}
-
 			# This will break in some cases. Hopefully not during
 			# official package builds.
 			chomp($line = qx{git --git-dir=$srcdir/.git rev-parse --abbrev-ref --symbolic-full-name \@\{upstream\}});
@@ -192,10 +187,12 @@ sub read_repo_info {
 			1;
 		};
 
-		if ($last_change && $num_commits && $repo_url && $repo_branch) {
+		if ($last_change && $num_commits && $repo_branch) {
 			$do_hack = 0;
 		}
 	} elsif ($version_pref{"svn_client"}) {
+		my $repo_root = undef;
+		my $repo_url = undef;
 		eval {
 			use warnings "all";
 			no warnings "all";
@@ -217,6 +214,10 @@ sub read_repo_info {
 			}
 			1;
 		};
+
+		if ($repo_url && $repo_root && index($repo_url, $repo_root) == 0) {
+			$repo_branch = substr($repo_url, length($repo_root));
+		}
 
 		if ($last_change && $num_commits && $repo_url && $repo_root) {
 			$do_hack = 0;
@@ -314,7 +315,7 @@ sub read_repo_info {
 	if ($do_hack) {
 		# Start of ugly internal SVN file hack
 		if (! open (ENTRIES, "< $srcdir/.svn/entries")) {
-			print ("Unable to open $srcdir/.svn/entries\n");
+			print STDERR "Unable to open $srcdir/.svn/entries\n";
 		} else {
 			$info_source = "Prodding .svn";
 			# We need to find out whether our parser can handle the entries file
@@ -362,10 +363,6 @@ sub read_repo_info {
 		$version_format =~ s/%#/$num_commits/;
 		$package_format =~ s/%#/$num_commits-$commit_id/;
 		$package_string = strftime($package_format, gmtime($last_change));
-	}
-
-	if ($repo_url && $repo_root && index($repo_url, $repo_root) == 0) {
-		$repo_branch = substr($repo_url, length($repo_root));
 	}
 
 	if ($get_vcs) {

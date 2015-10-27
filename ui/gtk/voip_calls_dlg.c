@@ -55,7 +55,7 @@
 #include "ui/gtk/stock_icons.h"
 
 #ifdef HAVE_LIBPORTAUDIO
-#include "ui/rtp_analysis.h"
+#include "ui/tap-rtp-analysis.h"
 #include "ui/gtk/rtp_player.h"
 #endif /* HAVE_LIBPORTAUDIO */
 
@@ -232,7 +232,7 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 			while (listb) {
 				gai = (seq_analysis_item_t *)listb->data;
 				if (gai->conv_num == listinfo->call_num) {
-					g_string_append_printf(filter_string_fwd, "%sframe.number == %u", is_first?"":" or ", gai->fd->num);
+					g_string_append_printf(filter_string_fwd, "%sframe.number == %u", is_first?"":" or ", gai->frame_number);
 					is_first = FALSE;
 				}
 				listb = g_list_next(listb);
@@ -404,6 +404,7 @@ voip_calls_mark_selected(GtkTreeModel *model, GtkTreePath *path _U_, GtkTreeIter
 
 	gtk_tree_model_get(model, iter, CALL_COL_DATA, &strinfo, -1);
 	strinfo->selected = gtk_tree_selection_iter_is_selected(selection, iter);
+	/* VOIP_CALLS_DEBUG("selected call %u (%s), frame %u: %d", strinfo->call_num, strinfo->call_id, strinfo->start_fd->num, strinfo->selected); */
 
 	return FALSE;
 }

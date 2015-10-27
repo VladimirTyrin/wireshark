@@ -35,7 +35,7 @@
 #include <epan/addr_resolv.h>
 #include <wsutil/nstime.h>
 
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "qt_ui_utils.h"
 #include "sequence_diagram.h"
@@ -90,7 +90,7 @@ static gboolean lbm_uimflow_add_to_graph(seq_analysis_info_t * seq_info, packet_
         {
             int compare;
 
-            compare = CMP_ADDRESS(&(stream_info->endpoint_a.stream_info.dest.addr), &(stream_info->endpoint_b.stream_info.dest.addr));
+            compare = cmp_address(&(stream_info->endpoint_a.stream_info.dest.addr), &(stream_info->endpoint_b.stream_info.dest.addr));
             if (compare < 0)
             {
                 swap_endpoints = FALSE;
@@ -122,12 +122,13 @@ static gboolean lbm_uimflow_add_to_graph(seq_analysis_info_t * seq_info, packet_
         epb = stream_info->endpoint_a;
         epa = stream_info->endpoint_b;
     }
-    item = (seq_analysis_item_t *)g_malloc(sizeof(seq_analysis_item_t));
-    COPY_ADDRESS(&(item->src_addr), &(pinfo->src));
-    COPY_ADDRESS(&(item->dst_addr), &(pinfo->dst));
-    item->fd = pinfo->fd;
+    item = (seq_analysis_item_t *)g_malloc0(sizeof(seq_analysis_item_t));
+    copy_address(&(item->src_addr), &(pinfo->src));
+    copy_address(&(item->dst_addr), &(pinfo->dst));
+    item->frame_number = pinfo->fd->num;
     item->port_src = pinfo->srcport;
     item->port_dst = pinfo->destport;
+    item->protocol = g_strdup(port_type_to_str(pinfo->ptype));
     if (stream_info->description == NULL)
     {
         item->frame_label = g_strdup_printf("(%" G_GUINT32_FORMAT ")", stream_info->sqn);
@@ -190,7 +191,7 @@ static void lbm_uimflow_get_analysis(capture_file * cfile, seq_analysis_info_t *
     while (list != NULL)
     {
         seq_analysis_item_t * seq_item = (seq_analysis_item_t *)list->data;
-        set_fd_time(cfile->epan, seq_item->fd, time_str);
+        set_fd_time(cfile->epan, frame_data_sequence_find(cfile->frames, seq_item->frame_number), time_str);
         seq_item->time_str = g_strdup(time_str);
         list = g_list_next(list);
     }
@@ -421,7 +422,7 @@ void LBMUIMFlowDialog::mouseMoved(QMouseEvent * event)
         seq_analysis_item_t * sai = m_sequence_diagram->itemForPosY(event->pos().y());
         if (sai)
         {
-            m_packet_num = sai->fd->num;
+            m_packet_num = sai->frame_number;
             hint = QString("Packet %1: %2").arg(m_packet_num).arg(sai->comment);
         }
     }

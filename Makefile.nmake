@@ -325,7 +325,7 @@ $(PROGRAM_NAME_GTK).exe	: $(LIBS_CHECK) config.h $(wireshark_gtk_OBJECTS) capchi
 	mt.exe -nologo -manifest "wireshark.exe.manifest" -outputresource:$(PROGRAM_NAME).exe;1
 !ENDIF
 
-$(PROGRAM_NAME).exe	: install-generated-files $(LIBS_CHECK) config.h capchild caputils epan ui qt wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib plugins
+$(PROGRAM_NAME).exe	: install-generated-files $(LIBS_CHECK) config.h capchild caputils codecs epan ui qt wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib plugins
 
 tshark.exe	: $(LIBS_CHECK) config.h $(tshark_OBJECTS) capchild caputils epan ui cli image\tshark.res wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib plugins
 	@echo Linking $@
@@ -1112,6 +1112,10 @@ process_libs:
 		nasm-2.09.08-win32.zip \
 		"$(DOWNLOAD_TAG)" "$(WIRESHARK_TARGET_PLATFORM)"
 !ENDIF
+	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
+		. \
+		USBPcapSetup-1.1.0.0-g794bf26.exe \
+		"$(DOWNLOAD_TAG)" "$(WIRESHARK_TARGET_PLATFORM)"
 !IF "$(WIN_SETUP_OPT)" == "--download"
 	@$(SH) $(WIN_SETUP) --settag "$(WIRESHARK_LIB_DIR)" "$(DOWNLOAD_TAG)" "$(WIRESHARK_TARGET_PLATFORM)"
 !ENDIF

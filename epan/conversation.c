@@ -199,15 +199,15 @@ conversation_hash_exact(gconstpointer v)
 	hash_val = 0;
 	tmp_addr.len  = 4;
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
+	add_address_to_hash(hash_val, &key->addr1);
 
 	tmp_addr.data = &key->port1;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr2);
+	add_address_to_hash(hash_val, &key->addr2);
 
 	tmp_addr.data = &key->port2;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
 	hash_val += ( hash_val << 3 );
 	hash_val ^= ( hash_val >> 11 );
@@ -236,8 +236,8 @@ conversation_match_exact(gconstpointer v, gconstpointer w)
 	 */
 	if (v1->port1 == v2->port1 &&
 	    v1->port2 == v2->port2 &&
-	    ADDRESSES_EQUAL(&v1->addr1, &v2->addr1) &&
-	    ADDRESSES_EQUAL(&v1->addr2, &v2->addr2)) {
+	    addresses_equal(&v1->addr1, &v2->addr1) &&
+	    addresses_equal(&v1->addr2, &v2->addr2)) {
 		/*
 		 * Yes.  It's the same conversation, and the two
 		 * address/port pairs are going in the same direction.
@@ -253,8 +253,8 @@ conversation_match_exact(gconstpointer v, gconstpointer w)
 	 */
 	if (v1->port2 == v2->port1 &&
 	    v1->port1 == v2->port2 &&
-	    ADDRESSES_EQUAL(&v1->addr2, &v2->addr1) &&
-	    ADDRESSES_EQUAL(&v1->addr1, &v2->addr2)) {
+	    addresses_equal(&v1->addr2, &v2->addr1) &&
+	    addresses_equal(&v1->addr1, &v2->addr2)) {
 		/*
 		 * Yes.  It's the same conversation, and the two
 		 * address/port pairs are going in opposite directions.
@@ -282,13 +282,13 @@ conversation_hash_no_addr2(gconstpointer v)
 	hash_val = 0;
 	tmp_addr.len  = 4;
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
+	add_address_to_hash(hash_val, &key->addr1);
 
 	tmp_addr.data = &key->port1;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
 	tmp_addr.data = &key->port2;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
 	hash_val += ( hash_val << 3 );
 	hash_val ^= ( hash_val >> 11 );
@@ -319,7 +319,7 @@ conversation_match_no_addr2(gconstpointer v, gconstpointer w)
 	 */
 	if (v1->port1 == v2->port1 &&
 	    v1->port2 == v2->port2 &&
-	    ADDRESSES_EQUAL(&v1->addr1, &v2->addr1)) {
+	    addresses_equal(&v1->addr1, &v2->addr1)) {
 		/*
 		 * Yes.  It's the same conversation, and the two
 		 * address/port pairs are going in the same direction.
@@ -347,12 +347,12 @@ conversation_hash_no_port2(gconstpointer v)
 	hash_val = 0;
 	tmp_addr.len  = 4;
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
+	add_address_to_hash(hash_val, &key->addr1);
 
 	tmp_addr.data = &key->port1;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr2);
+	add_address_to_hash(hash_val, &key->addr2);
 
 	hash_val += ( hash_val << 3 );
 	hash_val ^= ( hash_val >> 11 );
@@ -382,8 +382,8 @@ conversation_match_no_port2(gconstpointer v, gconstpointer w)
 	 * address 2 values the same?
 	 */
 	if (v1->port1 == v2->port1 &&
-	    ADDRESSES_EQUAL(&v1->addr1, &v2->addr1) &&
-	    ADDRESSES_EQUAL(&v1->addr2, &v2->addr2)) {
+	    addresses_equal(&v1->addr1, &v2->addr1) &&
+	    addresses_equal(&v1->addr2, &v2->addr2)) {
 		/*
 		 * Yes.  It's the same conversation, and the two
 		 * address/port pairs are going in the same direction.
@@ -411,10 +411,10 @@ conversation_hash_no_addr2_or_port2(gconstpointer v)
 	hash_val = 0;
 	tmp_addr.len  = 4;
 
-	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
+	add_address_to_hash(hash_val, &key->addr1);
 
 	tmp_addr.data = &key->port1;
-	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+	add_address_to_hash(hash_val, &tmp_addr);
 
 	hash_val += ( hash_val << 3 );
 	hash_val ^= ( hash_val >> 11 );
@@ -443,7 +443,7 @@ conversation_match_no_addr2_or_port2(gconstpointer v, gconstpointer w)
 	 * and second address 1 values the same?
 	 */
 	if (v1->port1 == v2->port1 &&
-	    ADDRESSES_EQUAL(&v1->addr1, &v2->addr1)) {
+	    addresses_equal(&v1->addr1, &v2->addr1)) {
 		/*
 		 * Yes.  It's the same conversation, and the two
 		 * address/port pairs are going in the same direction.

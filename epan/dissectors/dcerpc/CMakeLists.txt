@@ -34,12 +34,28 @@ set(CLEAN_FILES
 	${IDL2WRS_FILES}
 )
 
-if (WERROR)
+if (WERROR_COMMON_FLAGS)
 	set_source_files_properties(
 		${CLEAN_FILES}
 		PROPERTIES
-		COMPILE_FLAGS -Werror
+		COMPILE_FLAGS ${WERROR_COMMON_FLAGS}
 	)
 endif()
 
-#add_executable(idl2wrs ${IDL2WRS_FILES})
+add_executable(idl2wrs ${IDL2WRS_FILES})
+set_target_properties(idl2wrs PROPERTIES FOLDER "Executables")
+
+target_link_libraries(idl2wrs ${GLIB2_LIBRARIES})
+
+#
+# Editor modelines  -  https://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 4
+# tab-width: 4
+# indent-tabs-mode: t
+# End:
+#
+# vi: set shiftwidth=4 tabstop=4 noexpandtab:
+# :indentSize=4:tabSize=4:noTabs=false:
+#

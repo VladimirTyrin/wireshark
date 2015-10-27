@@ -29,6 +29,8 @@
 
 #include "config.h"
 
+#include <glib.h>
+
 #include <math.h>
 #include "globals.h"
 
@@ -63,9 +65,9 @@ static gint rtp_stream_info_cmp(gconstpointer aa, gconstpointer bb)
 		return 0;
 	if (a==NULL || b==NULL)
 		return 1;
-	if (ADDRESSES_EQUAL(&(a->src_addr), &(b->src_addr))
+	if (addresses_equal(&(a->src_addr), &(b->src_addr))
 		&& (a->src_port == b->src_port)
-		&& ADDRESSES_EQUAL(&(a->dest_addr), &(b->dest_addr))
+		&& addresses_equal(&(a->dest_addr), &(b->dest_addr))
 		&& (a->dest_port == b->dest_port)
 		&& (a->ssrc == b->ssrc))
 		return 0;
@@ -99,7 +101,12 @@ void rtpstream_reset(rtpstream_tapinfo_t *tapinfo)
 
 void rtpstream_reset_cb(void *arg)
 {
-	rtpstream_reset((rtpstream_tapinfo_t *)arg);
+	rtpstream_tapinfo_t *ti =(rtpstream_tapinfo_t *)arg;
+	if (ti->tap_reset) {
+		/* Give listeners a chance to cleanup references. */
+		ti->tap_reset(ti);
+	}
+	rtpstream_reset(ti);
 }
 
 /*
@@ -201,9 +208,9 @@ int rtpstream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, con
 
 	/* gather infos on the stream this packet is part of */
 	memset(&new_stream_info, 0, sizeof(rtp_stream_info_t));
-	COPY_ADDRESS(&(new_stream_info.src_addr), &(pinfo->src));
+	copy_address(&(new_stream_info.src_addr), &(pinfo->src));
 	new_stream_info.src_port = pinfo->srcport;
-	COPY_ADDRESS(&(new_stream_info.dest_addr), &(pinfo->dst));
+	copy_address(&(new_stream_info.dest_addr), &(pinfo->dst));
 	new_stream_info.dest_port = pinfo->destport;
 	new_stream_info.ssrc = rtpinfo->info_sync_src;
 	new_stream_info.payload_type = rtpinfo->info_payload_type;
@@ -405,7 +412,8 @@ get_dyn_pt_clock_rate(const gchar *payload_type_str)
 }
 
 /****************************************************************************/
-int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
+void
+rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 		       packet_info *pinfo,
 		       const struct _rtp_info *rtpinfo)
 {
@@ -425,7 +433,7 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 	if (statinfo->first_packet) {
 		/* Save the MAC address of the first RTP frame */
 		if( pinfo->dl_src.type == AT_ETHER){
-			COPY_ADDRESS(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src));
+			copy_address(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src));
 		}
 		statinfo->start_seq_nr = rtpinfo->info_seq_num;
 		statinfo->stop_seq_nr = rtpinfo->info_seq_num;
@@ -453,7 +461,7 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 			statinfo->flags |= STAT_FLAG_MARKER;
 		}
 		statinfo->first_packet = FALSE;
-		return 0;
+		return;
 	}
 
 	/* Reset flags */
@@ -461,10 +469,10 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 
 	/* Chek for duplicates (src mac differs from first_packet_mac_addr) */
 	if( pinfo->dl_src.type == AT_ETHER){
-		if(!ADDRESSES_EQUAL(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src))){
+		if(!addresses_equal(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src))){
 			statinfo->flags |= STAT_FLAG_DUP_PKT;
 			statinfo->delta = current_time-(statinfo->time);
-			return 0;
+			return;
 		}
 	}
 
@@ -543,7 +551,7 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 	statinfo->pt = rtpinfo->info_payload_type;
 
 	/*
-	 * Return 0 for unknown payload types
+	 * Return for unknown payload types
 	 * Ignore jitter calculation for clockrate = 0
 	 */
 	if (statinfo->pt < 96 ){
@@ -689,7 +697,7 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 	statinfo->stop_seq_nr = rtpinfo->info_seq_num;
 	statinfo->total_nr++;
 
-	return 0;
+	return;
 }
 
 /*

@@ -35,7 +35,7 @@
 #include <wiretap/wtap.h>
 #include <epan/expert.h>
 #include <epan/address_types.h>
-#include <epan/to_str-int.h>
+#include <epan/to_str.h>
 #include "packet-mstp.h"
 
 void proto_register_mstp(void);
@@ -355,9 +355,9 @@ dissect_mstp_wtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	/* set the MS/TP MAC address in the source/destination */
 	TVB_SET_ADDRESS(&pinfo->dl_dst,	mstp_address_type, tvb, offset+3, 1);
-	COPY_ADDRESS_SHALLOW(&pinfo->dst, &pinfo->dl_dst);
+	copy_address_shallow(&pinfo->dst, &pinfo->dl_dst);
 	TVB_SET_ADDRESS(&pinfo->dl_src,	mstp_address_type, tvb, offset+4, 1);
-	COPY_ADDRESS_SHALLOW(&pinfo->src, &pinfo->dl_src);
+	copy_address_shallow(&pinfo->src, &pinfo->dl_src);
 
 #ifdef BACNET_MSTP_SUMMARY_IN_TREE
 	mstp_frame_type = tvb_get_guint8(tvb, offset+2);

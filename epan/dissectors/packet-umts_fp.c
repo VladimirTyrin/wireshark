@@ -3164,7 +3164,7 @@ dissect_hsdsch_channel_info(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
         /************************/
         /*Configure the pdus*/
-        for (i=0;i<number_of_pdus; i++) {
+        for (i=0;i<number_of_pdus && i<MIN(MAX_MAC_FRAMES, MAX_RLC_CHANS); i++) {
             macinf->content[i] = hsdsch_macdflow_id_mac_content_map[p_fp_info->hsdsch_macflowd_id]; /*MAC_CONTENT_PS_DTCH;*/
             macinf->lchid[i] = fake_lchid_macd_flow[p_fp_info->hsdsch_macflowd_id];/*Faked logical channel id 255 used as a mark if it doesn't exist...*/
             macinf->fake_chid[i] = TRUE;    /**/
@@ -3808,7 +3808,7 @@ heur_dissect_fp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     return TRUE;
 }
 static guint8 fakes =5; /*[] ={1,5,8};*/
-static guint8 fake_map[31];
+static guint8 fake_map[256];
 
  /*
  * TODO: This need to be fixed!
@@ -4222,7 +4222,7 @@ dissect_fp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         if (p_conv_data) {
             /*Figure out the direction of the link*/
-            if (ADDRESSES_EQUAL(&(pinfo->net_dst), (&p_conv_data->crnc_address))) {
+            if (addresses_equal(&(pinfo->net_dst), (&p_conv_data->crnc_address))) {
 
                 proto_item *item= proto_tree_add_uint(fp_tree, hf_fp_ul_setup_frame,
                                                       tvb, 0, 0, p_conv_data->ul_frame_number);
@@ -4503,8 +4503,8 @@ umts_fp_init_protocol(void)
             if ((uat_umts_fp_ep_and_ch_records[i].dstIP) && (!str_to_ip(uat_umts_fp_ep_and_ch_records[i].dstIP, &hostb_addr))) {
                 continue; /* parsing failed, skip this entry */
             }
-            SET_ADDRESS(&src_addr, AT_IPv4, 4, &hosta_addr);
-            SET_ADDRESS(&dst_addr, AT_IPv4, 4, &hostb_addr);
+            set_address(&src_addr, AT_IPv4, 4, &hosta_addr);
+            set_address(&dst_addr, AT_IPv4, 4, &hostb_addr);
         } else {
             continue; /* Not implemented yet */
         }

@@ -38,6 +38,7 @@
 #include <epan/prefs.h>
 #include <epan/decode_as.h>
 #include <epan/tap.h>
+#include <wsutil/utf8_entities.h>
 
 #include "packet-bluetooth.h"
 #include "packet-bthci_cmd.h"
@@ -1244,9 +1245,6 @@ static const value_string cmd_authentication_enable_values[] = {
     {0x01, "Authentication enabled for all connection" },
     {0, NULL }
 };
-
-/* XXX - Should be pulled from utf8_entities.h */
-#define UTF8_MICRO_SIGN "\xc2\xb5"      /* 181 / 0xb5 */
 
 static const value_string cmd_input_coding_values[] = {
     {0x0, "Linear" },
@@ -3100,12 +3098,12 @@ dissect_bthci_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
             break;
     }
 
-    SET_ADDRESS(&pinfo->src,     AT_STRINGZ,  5, "host");
-    SET_ADDRESS(&pinfo->dst,     AT_STRINGZ, 11, "controller");
-    SET_ADDRESS(&pinfo->net_src, AT_STRINGZ,  5, "host");
-    SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, 11, "controller");
-    SET_ADDRESS(&pinfo->dl_src,  AT_STRINGZ,  5, "host");
-    SET_ADDRESS(&pinfo->dl_dst,  AT_STRINGZ, 11, "controller");
+    set_address(&pinfo->src,     AT_STRINGZ,  5, "host");
+    set_address(&pinfo->dst,     AT_STRINGZ, 11, "controller");
+    set_address(&pinfo->net_src, AT_STRINGZ,  5, "host");
+    set_address(&pinfo->net_dst, AT_STRINGZ, 11, "controller");
+    set_address(&pinfo->dl_src,  AT_STRINGZ,  5, "host");
+    set_address(&pinfo->dl_dst,  AT_STRINGZ, 11, "controller");
     if (!pinfo->fd->flags.visited) {
         address *addr;
 
@@ -4798,7 +4796,7 @@ proto_register_bthci_cmd(void)
     static ei_register_info ei[] = {
         { &ei_command_unknown_command,      { "bthci_cmd.expert.command.unknown_command", PI_PROTOCOL, PI_WARN, "Unknown command", EXPFILL }},
         { &ei_command_parameter_unexpected, { "bthci_cmd.expert.parameter.unexpected", PI_PROTOCOL, PI_WARN, "Unexpected command parameter", EXPFILL }},
-        { &ei_command_undecoded,            { "bthci_cmd.expert.command.undecoded", PI_PROTOCOL, PI_UNDECODED, "Command undecoded", EXPFILL }}
+        { &ei_command_undecoded,            { "bthci_cmd.expert.command.undecoded", PI_UNDECODED, PI_NOTE, "Command undecoded", EXPFILL }}
     };
 
     static gint *ett[] = {
@@ -6134,7 +6132,7 @@ proto_register_btcommon(void)
     };
 
     static ei_register_info ei[] = {
-        { &ei_eir_ad_undecoded,       { "btcommon.eir_ad.undecoded", PI_PROTOCOL, PI_UNDECODED, "Undecoded", EXPFILL }},
+        { &ei_eir_ad_undecoded,       { "btcommon.eir_ad.undecoded", PI_UNDECODED, PI_NOTE, "Undecoded", EXPFILL }},
         { &ei_eir_ad_unknown,         { "btcommon.eir_ad.unknown", PI_PROTOCOL, PI_WARN, "Unknown data", EXPFILL }},
     };
 

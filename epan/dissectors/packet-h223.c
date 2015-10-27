@@ -546,12 +546,12 @@ find_or_create_call_info_conv(packet_info * pinfo)
         conversation_add_proto_data(conv, proto_h223, datax);
         /* add the source details so we can distinguish directions
          * in future */
-        COPY_ADDRESS(&(datax -> srcaddress), &(pinfo->src));
+        copy_address(&(datax -> srcaddress), &(pinfo->src));
         datax -> srcport = pinfo->srcport;
     }
 
     /* work out what direction we're really going in */
-    if( ADDRESSES_EQUAL( &(pinfo->src), &(datax->srcaddress))
+    if( addresses_equal( &(pinfo->src), &(datax->srcaddress))
         && pinfo->srcport == datax->srcport )
         pinfo->p2p_dir = P2P_DIR_SENT;
     else
@@ -1111,11 +1111,9 @@ attempt_mux_level0_header_parse(guint32 nbytes _U_, guint32 hdr _U_, guint32 *mi
 }
 
 static gboolean
-attempt_mux_level1_header_parse(guint32 nbytes, guint32 hdr, guint32 *minlen)
+attempt_mux_level1_header_parse(guint32 nbytes, guint32 hdr, guint32 *minlen )
 {
     /* this is untested */
-    DISSECTOR_ASSERT_NOT_REACHED();
-
     if(nbytes < 2)
         return FALSE;
 

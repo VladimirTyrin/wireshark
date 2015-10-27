@@ -4015,7 +4015,7 @@ dissect_redirect(tvbuff_t *tvb, int offset, packet_info *pinfo,
             if (tree) {
                 proto_tree_add_ipv6 (addr_tree,
                     hf_address_ipv6_addr,
-                    tvb, offset, 16, (guint8 *)&address_ipv6);
+                    tvb, offset, 16, &address_ipv6);
             }
 
             /*
@@ -4151,7 +4151,7 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
                  */
                 goto unknown_address_type;
             }
-            proto_tree_add_ipv4 (addr_tree, hf_address_ipv4_addr,
+            proto_tree_add_item (addr_tree, hf_address_ipv4_addr,
                     tvb, offset, 4, ENC_NA);
             break;
 
@@ -4165,7 +4165,7 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
                  */
                 goto unknown_address_type;
             }
-            proto_tree_add_ipv6 (addr_tree, hf_address_ipv6_addr,
+            proto_tree_add_item (addr_tree, hf_address_ipv6_addr,
                     tvb, offset, 16, ENC_NA);
             break;
 

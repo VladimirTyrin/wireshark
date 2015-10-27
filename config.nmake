@@ -33,9 +33,9 @@ VCS_REVISION=0
 
 # The current Wireshark version. Recommended: Leave unchanged.
 # Updated by make-version.pl
-VERSION_MAJOR=1
-VERSION_MINOR=99
-VERSION_MICRO=9
+VERSION_MAJOR=2
+VERSION_MINOR=1
+VERSION_MICRO=0
 VERSION_BUILD=$(VCS_REVISION)
 
 # Local build information. Recommended: Unique string for your
@@ -253,7 +253,7 @@ PCAP_NG_DEFAULT=^#define PCAP_NG_DEFAULT 1
 WANT_PACKET_EDITOR=^#define WANT_PACKET_EDITOR 1
 
 !if "$(WIRESHARK_TARGET_PLATFORM)" == "win32"
-DOWNLOAD_TAG=2015-08-31
+DOWNLOAD_TAG=2015-10-07
 ##### Win32 Libraries #####
 #
 # Mandatory: GLib settings
@@ -515,7 +515,7 @@ GEOIP_PKG=1.6.6
 WINSPARKLE_PKG=0.3-44-g2c8d9d3-win32ws
 
 !else
-DOWNLOAD_TAG=2015-08-31
+DOWNLOAD_TAG=2015-10-07
 ##### Win64 Libraries #####
 #
 # Mandatory: GLib settings

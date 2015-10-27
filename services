@@ -1368,6 +1368,8 @@ dhcp-failover2    847/tcp # dhcp-failover 2 [Bernard_Volz] [Bernard_Volz]
 dhcp-failover2    847/udp # dhcp-failover 2 [Bernard_Volz] [Bernard_Volz]
 gdoi              848/tcp # GDOI [RFC3547]
 gdoi              848/udp # GDOI [RFC3547]
+domain-s          853/tcp # DNS query-response protocol run over TLS/DTLS [IETF_DPRIVE_Working_Group_Chairs] [Paul_Hoffman_1] 2015-10-08 [draft-ietf-dprive-dns-over-tls] TEMPORARY - registered 2015-10-08, expires 2016-10-08
+domain-s          853/udp # DNS query-response protocol run over TLS/DTLS [IETF_DPRIVE_Working_Group_Chairs] [Dan_Wing] 2015-10-08 [draft-ietf-dprive-dnsodtls] TEMPORARY - registered 2015-10-08, expires 2016-10-08
 iscsi             860/tcp # iSCSI [IESG] [IETF_Chair] 2013-08-27 [RFC7143]
 iscsi             860/udp # iSCSI [IESG] [IETF_Chair] 2013-08-27 [RFC7143]
 owamp-control     861/tcp # OWAMP-Control [RFC4656]
@@ -7927,6 +7929,9 @@ netcabinet-com   4409/tcp # Net-Cabinet comunication [Ian_Manning_2] [Ian_Mannin
 itwo-server      4410/tcp # RIB iTWO Application Server [Kristean_Heisler_2] [Kristean_Heisler_2] 2009-12-16
 found            4411/tcp # Found Messaging Protocol [Found_Software] [John_Mitchell] 2012-04-11 Defined TXT keys: id, key
 smallchat        4412/udp # SmallChat [Valentino_Giudice] [Valentino_Giudice] 2015-08-18
+avi-nms          4413/tcp # AVI Systems NMS [AVI_Systems] [Dave_Hatz] 2015-09-18
+avi-nms-disc     4413/udp # AVI Systems NMS [AVI_Systems] [Dave_Hatz] 2015-09-18
+updog            4414/tcp # Updog Monitoring and Status Framework [Egon_Technologies_LLC] [James_Downs] 2015-10-05
 netrockey6       4425/tcp # NetROCKEY6 SMART Plus Service [Feitian_Technologies] [Feitian_Technologies] 2010-09-15
 netrockey6       4425/udp # NetROCKEY6 SMART Plus Service [Feitian_Technologies] [Feitian_Technologies] 2010-09-15
 beacon-port-2    4426/tcp # SMARTS Beacon Port [Eyal_Yardeni] [Eyal_Yardeni] 2003-11
@@ -8464,6 +8469,7 @@ actifio-c2c      5103/tcp # Actifio C2C [Ravi_Kollipara] [Ravi_Kollipara] 2010-0
 tinymessage      5104/udp # TinyMessage [Josip_Medved] [Josip_Medved] 2010-10-20
 hughes-ap        5105/udp # Hughes Association Protocol [Varun_Santosh] [Varun_Santosh] 2010-10-20
 actifioudsagent  5106/tcp # Actifio UDS Agent [Actifio] [Madhav_Mutalik] 2014-06-05
+actifioreplic    5107/tcp # Disk to Disk replication between Actifio Clusters [Actifio] [Madhav_Mutalik] 2015-10-23
 taep-as-svc      5111/tcp # TAEP AS service [Liu_Changchun] [Liu_Changchun] 2008-11-05
 taep-as-svc      5111/udp # TAEP AS service [Liu_Changchun] [Liu_Changchun] 2008-11-05
 pm-cmdsvr        5112/tcp # PeerMe Msg Cmd Service [Marcos_Della] [Marcos_Della] 2005-08
@@ -9089,8 +9095,8 @@ synchronet-rtc   6101/tcp # SynchroNet-rtc [Arne_Haugland] [Arne_Haugland]
 synchronet-rtc   6101/udp # SynchroNet-rtc [Arne_Haugland] [Arne_Haugland]
 synchronet-upd   6102/tcp # SynchroNet-upd [Arne_Haugland] [Arne_Haugland]
 synchronet-upd   6102/udp # SynchroNet-upd [Arne_Haugland] [Arne_Haugland]
-rets             6103/tcp # RETS [Bruce_Toback] [Bruce_Toback]
-rets             6103/udp # RETS [Bruce_Toback] [Bruce_Toback]
+rets             6103/tcp # RETS [Jeremy_Crawford] [Jeremy_Crawford]
+rets             6103/udp # RETS [Jeremy_Crawford] [Jeremy_Crawford]
 dbdb             6104/tcp # DBDB [Aaron_Brick] [Aaron_Brick]
 dbdb             6104/udp # DBDB [Aaron_Brick] [Aaron_Brick]
 primaserver      6105/tcp # Prima Server [Prima_Designs_System] [Prima_Designs_System]
@@ -10589,6 +10595,7 @@ MOS-soap        10543/tcp # MOS SOAP Default Port [Eric_Thorniley] [Eric_Thornil
 MOS-soap        10543/udp # MOS SOAP Default Port [Eric_Thorniley] [Eric_Thorniley] 2007-09-17
 MOS-soap-opt    10544/tcp # MOS SOAP Optional Port [Eric_Thorniley] [Eric_Thorniley] 2007-09-17
 MOS-soap-opt    10544/udp # MOS SOAP Optional Port [Eric_Thorniley] [Eric_Thorniley] 2007-09-17
+serverdocs      10548/tcp # Apple Document Sharing Service [Apple_Inc_3] [Jason_Thorpe] 2015-09-29
 printopia       10631/tcp # Printopia Serve [Decisive_Tactics_Inc] [Chris_Kent] 2011-10-24 2015-04-09
 gap             10800/tcp # Gestor de Acaparamiento para Pocket PCs [Juan_Carlos_Olivares] [Juan_Carlos_Olivares] 2006-03
 gap             10800/udp # Gestor de Acaparamiento para Pocket PCs [Juan_Carlos_Olivares] [Juan_Carlos_Olivares] 2006-03
@@ -10699,8 +10706,8 @@ vipera          12012/tcp # Vipera Messaging Service [Silvano_Maffeis_2] [Silvan
 vipera          12012/udp # Vipera Messaging Service [Silvano_Maffeis_2] [Silvano_Maffeis_2] 2005-08
 vipera-ssl      12013/tcp # Vipera Messaging Service over SSL Communication [Silvano_Maffeis_2] [Silvano_Maffeis_2] 2008-01-16
 vipera-ssl      12013/udp # Vipera Messaging Service over SSL Communication [Silvano_Maffeis_2] [Silvano_Maffeis_2] 2008-01-16
-rets-ssl        12109/tcp # RETS over SSL [Bruce_Toback] [Bruce_Toback] 2003-02
-rets-ssl        12109/udp # RETS over SSL [Bruce_Toback] [Bruce_Toback] 2003-02
+rets-ssl        12109/tcp # RETS over SSL [Jeremy_Crawford] [Jeremy_Crawford] 2003-02
+rets-ssl        12109/udp # RETS over SSL [Jeremy_Crawford] [Jeremy_Crawford] 2003-02
 nupaper-ss      12121/tcp # NuPaper Session Service [David_Warden_2] [David_Warden_2] 2005-11
 nupaper-ss      12121/udp # NuPaper Session Service [David_Warden_2] [David_Warden_2] 2005-11
 cawas           12168/tcp # CA Web Access Service [Jon_Press] [Jon_Press] 2005-08
@@ -11157,6 +11164,7 @@ scscp           26133/tcp # Symbolic Computation Software Composability Protocol
 scscp           26133/udp # Symbolic Computation Software Composability Protocol [Alexander_Konovalov] [Alexander_Konovalov] 2007-11-27
 wnn6-ds         26208/tcp # wnn6-ds [Yasunari_Gon_Yamasit] [Yasunari_Gon_Yamasit]
 wnn6-ds         26208/udp # wnn6-ds [Yasunari_Gon_Yamasit] [Yasunari_Gon_Yamasit]
+cockroach       26257/tcp # CockroachDB [Cockroach_Labs_Inc] [Ben_Darnell] 2015-09-29
 ezproxy         26260/tcp # eZproxy [Albert_C_Yang] [Albert_C_Yang]
 ezproxy         26260/udp # eZproxy [Albert_C_Yang] [Albert_C_Yang]
 ezmeeting       26261/tcp # eZmeeting [Albert_C_Yang] [Albert_C_Yang]

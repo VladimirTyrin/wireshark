@@ -133,7 +133,7 @@ void proto_reg_handoff_bgp(void);
 #define BGP_OPTION_AUTHENTICATION    1   /* RFC1771 */
 #define BGP_OPTION_CAPABILITY        2   /* RFC2842 */
 
-/* https://www.iana.org/assignments/capability-codes/ (last updated 2013-11-19) */
+/* https://www.iana.org/assignments/capability-codes/ (last updated 2015-09-30) */
 /* BGP capability code */
 #define BGP_CAPABILITY_RESERVED                     0   /* RFC2434 */
 #define BGP_CAPABILITY_MULTIPROTOCOL                1   /* RFC2858 */
@@ -141,13 +141,16 @@ void proto_reg_handoff_bgp(void);
 #define BGP_CAPABILITY_COOPERATIVE_ROUTE_FILTERING  3   /* RFC5291 */
 #define BGP_CAPABILITY_MULTIPLE_ROUTE_DEST          4   /* RFC3107 */
 #define BGP_CAPABILITY_EXTENDED_NEXT_HOP            5   /* RFC5549 */
+#define BGP_CAPABILITY_EXTENDED_MESSAGE             6   /* draft-ietf-idr-bgp-extended-messages */
 #define BGP_CAPABILITY_GRACEFUL_RESTART             64  /* RFC4724 */
 #define BGP_CAPABILITY_4_OCTET_AS_NUMBER            65  /* RFC6793 */
 #define BGP_CAPABILITY_DYNAMIC_CAPABILITY           67  /* draft-ietf-idr-dynamic-cap */
 #define BGP_CAPABILITY_MULTISESSION                 68  /* draft-ietf-idr-bgp-multisession */
 #define BGP_CAPABILITY_ADDITIONAL_PATHS             69  /* draft-ietf-idr-add-paths */
-#define BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH       70  /* draft-ietf-idr-bgp-enhanced-route-refresh */
+#define BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH       70  /* [RFC7313] */
 #define BGP_CAPABILITY_LONG_LIVED_GRACEFUL_RESTART  71  /* draft-uttaro-idr-bgp-persistence */
+#define BGP_CAPABILITY_CP_ORF                       72  /* [RFC7543] */
+#define BGP_CAPABILITY_FQDN                         73  /* draft-walton-bgp-hostname-capability */
 #define BGP_CAPABILITY_ROUTE_REFRESH_CISCO         128  /* Cisco */
 #define BGP_CAPABILITY_ORF_CISCO                   130  /* Cisco */
 
@@ -1005,6 +1008,7 @@ static const value_string capability_vals[] = {
     { BGP_CAPABILITY_COOPERATIVE_ROUTE_FILTERING,   "Cooperative route filtering capability" },
     { BGP_CAPABILITY_MULTIPLE_ROUTE_DEST,           "Multiple routes to a destination capability" },
     { BGP_CAPABILITY_EXTENDED_NEXT_HOP,             "Extended Next Hop Encoding" },
+    { BGP_CAPABILITY_EXTENDED_MESSAGE,              "BGP-Extended Message" },
     { BGP_CAPABILITY_GRACEFUL_RESTART,              "Graceful Restart capability" },
     { BGP_CAPABILITY_4_OCTET_AS_NUMBER,             "Support for 4-octet AS number capability" },
     { BGP_CAPABILITY_DYNAMIC_CAPABILITY,            "Support for Dynamic capability" },
@@ -1012,6 +1016,8 @@ static const value_string capability_vals[] = {
     { BGP_CAPABILITY_ADDITIONAL_PATHS,              "Support for Additional Paths" },
     { BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH,        "Enhanced route refresh capability" },
     { BGP_CAPABILITY_LONG_LIVED_GRACEFUL_RESTART,   "Long-Lived Graceful Restart (LLGR) Capability" },
+    { BGP_CAPABILITY_CP_ORF,                        "CP-ORF Capability" },
+    { BGP_CAPABILITY_FQDN,                          "FQDN Capability" },
     { BGP_CAPABILITY_ROUTE_REFRESH_CISCO,           "Route refresh capability" },
     { BGP_CAPABILITY_ORF_CISCO,                     "Cooperative route filtering capability" },
     { 0, NULL }
@@ -1214,6 +1220,10 @@ static int hf_bgp_cap_orf_safi = -1;
 static int hf_bgp_cap_orf_number = -1;
 static int hf_bgp_cap_orf_type = -1;
 static int hf_bgp_cap_orf_sendreceive = -1;
+static int hf_bgp_cap_fqdn_hostname_len = -1;
+static int hf_bgp_cap_fqdn_hostname = -1;
+static int hf_bgp_cap_fqdn_domain_name_len = -1;
+static int hf_bgp_cap_fqdn_domain_name = -1;
 
 /* BGP update global header field */
 static int hf_bgp_update_withdrawn_routes_length = -1;
@@ -1769,7 +1779,7 @@ decode_path_prefix4(proto_tree *tree, packet_info *pinfo, int hf_path_id, int hf
         return -1;
     }
     /* put prefix into protocol tree */
-    SET_ADDRESS(&addr, AT_IPv4, 4, ip_addr.addr_bytes);
+    set_address(&addr, AT_IPv4, 4, ip_addr.addr_bytes);
     prefix_tree = proto_tree_add_subtree_format(tree, tvb, offset,  4 + 1 + length,
                             ett_bgp_prefix, NULL, "%s/%u PathId %u ",
                             address_to_str(wmem_packet_scope(), &addr), plen, path_identifier);
@@ -1805,7 +1815,7 @@ decode_prefix4(proto_tree *tree, packet_info *pinfo, proto_item *parent_item, in
     }
 
     /* put prefix into protocol tree */
-    SET_ADDRESS(&addr, AT_IPv4, 4, ip_addr.addr_bytes);
+    set_address(&addr, AT_IPv4, 4, ip_addr.addr_bytes);
     prefix_tree = proto_tree_add_subtree_format(tree, tvb, offset,
             tlen != 0 ? tlen : 1 + length, ett_bgp_prefix, NULL,
             "%s/%u", address_to_str(wmem_packet_scope(), &addr), plen);
@@ -1843,14 +1853,13 @@ decode_prefix6(proto_tree *tree, packet_info *pinfo, int hf_addr, tvbuff_t *tvb,
     }
 
     /* put prefix into protocol tree */
-    SET_ADDRESS(&addr_str, AT_IPv6, 16, addr.bytes);
+    set_address(&addr_str, AT_IPv6, 16, addr.bytes);
     prefix_tree = proto_tree_add_subtree_format(tree, tvb, offset,
             tlen != 0 ? tlen : 1 + length, ett_bgp_prefix, NULL, "%s/%u",
             address_to_str(wmem_packet_scope(), &addr_str), plen);
     proto_tree_add_uint_format(prefix_tree, hf_bgp_prefix_length, tvb, offset, 1, plen, "%s prefix length: %u",
         tag, plen);
-    proto_tree_add_ipv6(prefix_tree, hf_addr, tvb, offset + 1, length,
-            addr.bytes);
+    proto_tree_add_ipv6(prefix_tree, hf_addr, tvb, offset + 1, length, &addr);
     return(1 + length);
 }
 
@@ -1881,14 +1890,13 @@ decode_fspec_match_prefix6(proto_tree *tree, proto_item *parent_item, int hf_add
     }
 
     /* put prefix into protocol tree */
-    SET_ADDRESS(&addr_str, AT_IPv6, 16, addr.bytes);
+    set_address(&addr_str, AT_IPv6, 16, addr.bytes);
     prefix_tree = proto_tree_add_subtree_format(tree, tvb, offset,
             tlen != 0 ? tlen : 1 + length, ett_bgp_prefix, NULL, "%s/%u",
             address_to_str(wmem_packet_scope(), &addr_str), plen);
     proto_tree_add_item(prefix_tree, hf_bgp_flowspec_nlri_ipv6_pref_len, tvb, offset + plength_place, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(prefix_tree, hf_bgp_flowspec_nlri_ipv6_pref_offset, tvb, offset + poffset_place, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_ipv6(prefix_tree, hf_addr, tvb, offset + 2, length,
-            addr.bytes);
+    proto_tree_add_ipv6(prefix_tree, hf_addr, tvb, offset + 2, length, &addr);
     if (parent_item != NULL)
       proto_item_append_text(parent_item, " (%s/%u)",
                              address_to_str(wmem_packet_scope(), &addr_str), plen);
@@ -4033,7 +4041,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                     return -1;
                 }
 
-                SET_ADDRESS(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
+                set_address(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
                 prefix_tree = proto_tree_add_subtree_format(tree, tvb, start_offset,
                                          (offset + length) - start_offset,
                                          ett_bgp_prefix, NULL,
@@ -4139,7 +4147,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                                         tag, plen + 16);
                     return -1;
                 }
-                SET_ADDRESS(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
+                set_address(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
                 prefix_tree = proto_tree_add_subtree_format(tree, tvb, start_offset,
                                          (offset + length) - start_offset,
                                          ett_bgp_prefix, NULL,
@@ -4186,7 +4194,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                                              tag, plen + (labnum * 3*8) + 8*8);
                      return -1;
                 }
-                SET_ADDRESS(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
+                set_address(&addr, AT_IPv4, 4, ip4addr.addr_bytes);
                 prefix_tree = proto_tree_add_subtree_format(tree, tvb, start_offset,
                                                  (offset + 8 + length) - start_offset,
                                                  ett_bgp_prefix, NULL, "BGP Prefix");
@@ -4247,7 +4255,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                 }
 
                 /* XXX - break off IPv6 into its own field */
-                SET_ADDRESS(&addr, AT_IPv6, 16, ip6addr.bytes);
+                set_address(&addr, AT_IPv6, 16, ip6addr.bytes);
                 proto_tree_add_string_format(tree, hf_bgp_label_stack, tvb, start_offset,
                                     (offset + length) - start_offset,
                                     wmem_strbuf_get_str(stack_strbuf), "Label Stack=%s, IPv6=%s/%u",
@@ -4287,7 +4295,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                                         tag, plen + 16);
                     return -1;
                 }
-                SET_ADDRESS(&addr, AT_IPv6, 16, ip6addr.bytes);
+                set_address(&addr, AT_IPv6, 16, ip6addr.bytes);
                 prefix_tree = proto_tree_add_subtree_format(tree, tvb, start_offset,
                                     (offset + length) - start_offset,
                                     ett_bgp_prefix, NULL,
@@ -4297,7 +4305,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
 
                 proto_tree_add_item(prefix_tree, hf_bgp_mp_nlri_tnl_id, tvb,
                                     start_offset + 1, 2, ENC_BIG_ENDIAN);
-                proto_tree_add_ipv6(prefix_tree, hf_addr6, tvb, offset, length, ip6addr.bytes);
+                proto_tree_add_ipv6(prefix_tree, hf_addr6, tvb, offset, length, &ip6addr);
 
                 total_length = (1 + 2) + length; /* length field + Tunnel Id + IPv4 len */
                 break;
@@ -4338,7 +4346,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                         }
 
                         /* XXX - break up into multiple fields */
-                        SET_ADDRESS(&addr, AT_IPv6, 16, ip6addr.bytes);
+                        set_address(&addr, AT_IPv6, 16, ip6addr.bytes);
                         proto_tree_add_string_format(tree, hf_bgp_label_stack, tvb, start_offset,
                                             (offset + 8 + length) - start_offset,
                                             wmem_strbuf_get_str(stack_strbuf), "Label Stack=%s RD=%u:%u, IPv6=%s/%u",
@@ -4359,7 +4367,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                         }
 
                         /* XXX - break up into multiple fields */
-                        SET_ADDRESS(&addr, AT_IPv6, 16, &ip6addr);
+                        set_address(&addr, AT_IPv6, 16, &ip6addr);
                         proto_tree_add_string_format(tree, hf_bgp_label_stack, tvb, start_offset,
                                             (offset + 8 + length) - start_offset,
                                             wmem_strbuf_get_str(stack_strbuf), "Label Stack=%s RD=%s:%u, IPv6=%s/%u",
@@ -4380,7 +4388,7 @@ decode_prefix_MP(proto_tree *tree, int hf_addr4, int hf_addr6,
                         }
 
                         /* XXX - break up into multiple fields */
-                        SET_ADDRESS(&addr, AT_IPv6, 16, ip6addr.bytes);
+                        set_address(&addr, AT_IPv6, 16, ip6addr.bytes);
                         proto_tree_add_string_format(tree, hf_bgp_label_stack, tvb, start_offset,
                                             (offset + 8 + length) - start_offset,
                                             "Label Stack=%s RD=%u.%u:%u, IPv6=%s/%u",
@@ -4815,9 +4823,30 @@ dissect_bgp_capability_item(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
             }
             break;
 
+        case BGP_CAPABILITY_FQDN:{
+            guint8 hostname_len, domain_name_len;
+
+            proto_tree_add_item(cap_tree, hf_bgp_cap_fqdn_hostname_len, tvb, offset, 1, ENC_NA);
+            hostname_len = tvb_get_guint8(tvb, offset);
+            offset += 1;
+
+            proto_tree_add_item(cap_tree, hf_bgp_cap_fqdn_hostname, tvb, offset, hostname_len, ENC_ASCII|ENC_NA);
+            offset += hostname_len;
+
+            proto_tree_add_item(cap_tree, hf_bgp_cap_fqdn_domain_name_len, tvb, offset, 1, ENC_NA);
+            domain_name_len = tvb_get_guint8(tvb, offset);
+            offset += 1;
+
+            proto_tree_add_item(cap_tree, hf_bgp_cap_fqdn_domain_name, tvb, offset, domain_name_len, ENC_ASCII|ENC_NA);
+            offset += domain_name_len;
+
+            }
+            break;
+
         case BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH:
         case BGP_CAPABILITY_ROUTE_REFRESH_CISCO:
         case BGP_CAPABILITY_ROUTE_REFRESH:
+        case BGP_CAPABILITY_CP_ORF:
             if (clen != 0) {
                 expert_add_info_format(pinfo, ti_len, &ei_bgp_cap_len_bad, "Capability length %u wrong, must be = 0", clen);
                 proto_tree_add_item(cap_tree, hf_bgp_cap_unknown, tvb, offset, clen, ENC_NA);
@@ -6451,7 +6480,7 @@ dissect_bgp_capability(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo)
 }
 
 static void
-dissect_bgp_pdu(tvbuff_t *volatile tvb, packet_info *pinfo, proto_tree *tree,
+dissect_bgp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 gboolean first)
 {
     guint16       bgp_len;          /* Message length             */
@@ -6605,7 +6634,6 @@ dissect_bgp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         bgp_tree = proto_item_add_subtree(ti, ett_bgp);
 
         proto_tree_add_item(bgp_tree, hf_bgp_continuation, tvb, 0, offset, ENC_NA);
-;
     }
 
     /*
@@ -6747,7 +6775,7 @@ proto_register_bgp(void)
         { "Prefix Length", "bgp.prefix_length", FT_UINT8, BASE_DEC,
           NULL, 0x0, NULL, HFILL }},
       { &hf_bgp_rd,
-        { "Router Distinguer", "bgp.rd", FT_STRING, BASE_NONE,
+        { "Route Distinguisher", "bgp.rd", FT_STRING, BASE_NONE,
           NULL, 0x0, NULL, HFILL }},
       { &hf_bgp_continuation,
         { "Continuation", "bgp.continuation", FT_NONE, BASE_NONE,
@@ -6980,6 +7008,18 @@ proto_register_bgp(void)
       { &hf_bgp_cap_orf_sendreceive,
         { "Send Receive", "bgp.cap.orf.sendreceive", FT_UINT8, BASE_DEC,
           VALS(orf_send_recv_vals), 0x0, NULL, HFILL }},
+      { &hf_bgp_cap_fqdn_hostname_len,
+        { "Hostname Length", "bgp.cap.orf.fqdn.hostname.len", FT_UINT8, BASE_DEC,
+          NULL, 0x0, NULL, HFILL }},
+      { &hf_bgp_cap_fqdn_hostname,
+        { "Hostname", "bgp.cap.orf.fqdn.hostname", FT_STRING, BASE_NONE,
+          NULL, 0x0, NULL, HFILL }},
+      { &hf_bgp_cap_fqdn_domain_name_len,
+        { "Domain Name Length", "bgp.cap.orf.fqdn.domain_name.len", FT_UINT8, BASE_DEC,
+          NULL, 0x0, NULL, HFILL }},
+      { &hf_bgp_cap_fqdn_domain_name,
+        { "Domain Name", "bgp.cap.orf.fqdn.domain_name", FT_STRING, BASE_NONE,
+          NULL, 0x0, NULL, HFILL }},
       /* BGP update */
 
       { &hf_bgp_update_withdrawn_routes_length,

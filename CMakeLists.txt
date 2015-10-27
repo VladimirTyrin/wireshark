@@ -134,6 +134,9 @@ if(WIN32)
 	endif()
 
 	# XXX Add a dependency on ${_ws_lib_dir}/current_tag.txt?
+
+	# Head off any attempts to use Cygwin's Python.
+	include(LocatePythonExecutable)
 endif(WIN32)
 
 include(UseCustomIncludes)
@@ -178,9 +181,9 @@ include(CMakeInstallDirs)
 
 # Updated by make-version.pl
 set(GIT_REVISION 0)
-set(PROJECT_MAJOR_VERSION 1)
-set(PROJECT_MINOR_VERSION 99)
-set(PROJECT_PATCH_VERSION 9)
+set(PROJECT_MAJOR_VERSION 2)
+set(PROJECT_MINOR_VERSION 1)
+set(PROJECT_PATCH_VERSION 0)
 set(PROJECT_BUILD_VERSION ${GIT_REVISION})
 set(PROJECT_VERSION_EXTENSION "$ENV{WIRESHARK_VERSION_EXTRA}")
 set(PROJECT_VERSION "${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION}${PROJECT_VERSION_EXTENSION}")
@@ -225,6 +228,13 @@ if( NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
 	message( WARNING "Capabilities are only supported on Linux" )
 	set( DUMPCAP_INSTALL_OPTION )
 endif()
+
+# Always enable -fPIE (or -fPIC). -pie is added below for non-MSVC.
+# Needed when either:
+# - Qt5_POSITION_INDEPENDENT_CODE is set and CMake < 2.8.11
+# - PIE is wanted (-pie) and you want to add -fPIC/-fPIE automatically.
+# This option only has an effect on CMake >= 2.8.9
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 	if (MSVC10)
@@ -284,9 +294,8 @@ if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		#                                   See http://msdn.microsoft.com/en-us/library/dn785163.aspx
 		set(LOCAL_CFLAGS ${LOCAL_CFLAGS} "/Zo")
 	elseif(MSVC14)
-		# /Zo                               Enhanced debugging of optimised codem for VS2013 Update 3 and beyond,
-		#                                   Assume all VS2013 builds are at least Update 3.
-		#                                   See http://msdn.microsoft.com/en-us/library/dn785163.aspx
+		# /Zo                               Enhanced debugging of optimised code
+		#                                   VS2015(MSVC14): On by default when /Zi or /Z7 used.
 		set(LOCAL_CFLAGS ${LOCAL_CFLAGS} "/Zo")
 	endif()
 
@@ -347,11 +356,6 @@ else()
 		-fwrapv
 		-fno-strict-overflow
 		-fno-delete-null-pointer-checks
-		-fsanitize=undefined # compile and runtime checks
-		# -fsanitize=float-divide-by-zero
-		# -fsanitize=float-cast-overflow
-		# -fsanitize=address
-		# -fno-sanitize-recover # Abort during runtime
 		-Wvla
 		-Waddress
 		-Wattributes
@@ -386,6 +390,7 @@ else()
 	set(WIRESHARK_EXTRA_COMPILER_COMMON_FLAGS
 		# The following are for C and C++
 		-Wpedantic
+		-Wno-variadic-macros
 		#
 		# Various code blocks this one.
 		#
@@ -444,13 +449,13 @@ else()
 
 	if(CMAKE_C_COMPILER_ID MATCHES "Clang")
 		set(WIRESHARK_COMMON_FLAGS ${WIRESHARK_COMMON_FLAGS}
-			#-fcolor-diagnostics
+			# avoid "argument unused during compilation" warnings
+			# (for example, when getting the -gsplit-dwarf option or
+			# when combining -fwrapv with -fno-strict-overflow)
+			-Qunused-arguments
 		)
 
-		# ccache + clang++ can result in "argument unused during
-		# compilation" warnings.
 		set(WIRESHARK_CPP_ONLY_FLAGS ${WIRESHARK_CPP_ONLY_FLAGS}
-			-Qunused-arguments
 		)
 	else()
 		set(WIRESHARK_COMMON_FLAGS ${WIRESHARK_COMMON_FLAGS}
@@ -466,6 +471,10 @@ else()
 		# and no yet all leak is fixed...
 		# use ASAN_OPTIONS=detect_leaks=0 to disable detect_leaks
 		-fsanitize=address
+		-fsanitize=undefined # compile and runtime checks
+		# -fsanitize=float-divide-by-zero
+		# -fsanitize=float-cast-overflow
+		# -fno-sanitize-recover # Abort during runtime
 	)
 
 	if(ENABLE_ASAN)
@@ -491,10 +500,14 @@ set( CPP_FLAG_TESTS ${WIRESHARK_COMMON_FLAGS} ${WIRESHARK_CPP_ONLY_FLAGS} )
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-if(NOT DISABLE_WERROR AND NOT ENABLE_EXTRA_COMPILER_WARNINGS)
-	check_c_compiler_flag(-Werror WERROR)
+if(ENABLE_STATIC)
+	set(BUILD_SHARED_LIBS 0)
+	set(LINK_MODE_LIB STATIC)
+	set(LINK_MODE_MODULE STATIC)
 else()
-	set(WERROR FALSE)
+	set(BUILD_SHARED_LIBS 1)
+	set(LINK_MODE_LIB SHARED)
+	set(LINK_MODE_MODULE MODULE)
 endif()
 
 # Sigh: Have to use THIS_FLAG instead of ${F} for some reason
@@ -521,6 +534,21 @@ foreach(THIS_FLAG ${CPP_FLAG_TESTS})
 	endif()
 endforeach()
 set(CMAKE_CXX_FLAGS "${ADDED_CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
+
+if(NOT DISABLE_WERROR AND NOT ENABLE_EXTRA_COMPILER_WARNINGS)
+	if(CMAKE_C_COMPILER_ID MATCHES "MSVC")
+		set(WERROR_COMMON_FLAGS "/WX")
+		set(NO_ERROR_DEPRECATED_DECLARATIONS_COMPILE_FLAGS)
+	else()
+		check_c_compiler_flag(-Werror WERROR)
+		if (WERROR)
+			set(WERROR_COMMON_FLAGS "-Werror")
+			set(NO_ERROR_DEPRECATED_DECLARATIONS_COMPILE_FLAGS "-Wno-error=deprecated-declarations")
+		endif()
+	endif()
+else()
+	set(WERROR_COMMON_FLAGS FALSE)
+endif()
 
 #
 # Try to have the compiler default to hiding symbols, so that only
@@ -572,6 +600,13 @@ if(NOT CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		# -fwhopr
 		# -fwhole-program
 	)
+	# CMAKE_POSITION_INDEPENDENT_CODE is only supported starting with CMake
+	# 2.8.9. Do not add -pie automatically for older versions.
+	if(NOT CMAKE_VERSION VERSION_LESS "2.8.9")
+		set(WIRESHARK_LD_FLAGS ${WIRESHARK_LD_FLAGS}
+			-pie
+		)
+	endif()
 endif()
 
 include(CheckCLinkerFlag)
@@ -587,16 +622,6 @@ foreach(THIS_FLAG ${WIRESHARK_LD_FLAGS})
 	endif()
 	math(EXPR _C "${_C} + 1")
 endforeach()
-
-if(ENABLE_STATIC)
-	set(BUILD_SHARED_LIBS 0)
-	set(LINK_MODE_LIB STATIC)
-	set(LINK_MODE_MODULE STATIC)
-else()
-	set(BUILD_SHARED_LIBS 1)
-	set(LINK_MODE_LIB SHARED)
-	set(LINK_MODE_MODULE MODULE)
-endif()
 
 if(APPLE AND EXISTS /usr/local/opt/gettext)
 	# GLib on OS X requires libintl. Homebrew installs gettext (and
@@ -661,7 +686,7 @@ if(BUILD_wireshark)
 		set(PACKAGELIST ${PACKAGELIST}
 			Qt5Core
 			Qt5LinguistTools
-			Qt5MultimediaWidgets
+			Qt5Multimedia
 			Qt5PrintSupport
 			Qt5Widgets
 		)
@@ -674,7 +699,7 @@ if(BUILD_wireshark)
 		set(QT_VERSION 5)
 	else()
 		set(PACKAGELIST ${PACKAGELIST} Qt4)
-		# set(Qt4_OPTIONS 4.7.1 REQUIRED QtCore QtGui)
+		set(Qt4_OPTIONS 4.7.1 REQUIRED QtCore QtGui)
 		set(QT_VERSION 4)
 	endif()
 endif()
@@ -687,11 +712,15 @@ endif()
 # GNU crypto
 if(ENABLE_GCRYPT)
 	set(PACKAGELIST ${PACKAGELIST} GCRYPT)
+	# Minimum version needed.
+	set(GCRYPT_OPTIONS "1.4.2")
 endif()
 
 # GNU SSL/TLS support
 if(ENABLE_GNUTLS)
 	set(PACKAGELIST ${PACKAGELIST} GNUTLS)
+	# Minimum version needed.
+	set(GNUTLS_OPTIONS "2.12.0")
 endif()
 
 # Kerberos
@@ -699,7 +728,7 @@ if(ENABLE_KERBEROS)
 	set(PACKAGELIST ${PACKAGELIST} KERBEROS)
 endif()
 
-# Portable audio
+# Portable audio (GTK+ only)
 if(ENABLE_PORTAUDIO AND BUILD_wireshark_gtk)
 	set(PACKAGELIST ${PACKAGELIST} PORTAUDIO)
 endif()
@@ -766,10 +795,10 @@ endif()
 
 set(PROGLIST)
 
-#Sort the package list
+# Sort the package list
 list(SORT PACKAGELIST)
 message(STATUS "Packagelist: ${PACKAGELIST}")
-#Let's loop the package list
+# Let's loop the package list
 foreach(PACKAGE ${PACKAGELIST})
 	if(${PACKAGE} STREQUAL "Qt4")
 		set(PACKAGE_VAR "QT")
@@ -833,9 +862,6 @@ if(HAVE_LIBLUA)
 endif()
 if(HAVE_LIBKERBEROS)
 	set(HAVE_KERBEROS 1)
-	# HAVE_HEIMDAL_KERBEROS
-	set(HAVE_MIT_KERBEROS 1)
-	set(HAVE_KEYTYPE_ARCFOUR_56 1)
 endif()
 if(HAVE_LIBGEOIP)
 	set(HAVE_GEOIP 1)
@@ -872,16 +898,62 @@ if(HAVE_LIBZLIB)
 	include_directories(BEFORE ${ZLIB_INCLUDE_DIRS})
 endif()
 if (Qt5Widgets_FOUND)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-	if (Qt5_POSITION_INDEPENDENT_CODE)
-		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+	#
+	# Qt5CoreConfigExtras.cmake in Qt 5.5.0 sets -fPIC unconditionally.
+	# https://bugreports.qt.io/browse/QTBUG-47942
+	#
+	# If it was added, we remove it, and then check whether it's
+	# necessary the same way we do for autotools, by checking
+	# whether we can compile and link a simple file with just
+	#
+	#	#include <QtCore>
+	#	int main() {}
+	#
+	# (Yes, check_XXX_source_compiles() should be renamed
+	# check_XXX_source_compiles_and_links().)
+	#
+	if ("${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}" MATCHES ".*-fPIC.*")
+		list(REMOVE_ITEM Qt5Widgets_EXECUTABLE_COMPILE_FLAGS "-fPIC")
+		set(CMAKE_REQUIRED_FLAGS ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS})
+		set(CMAKE_REQUIRED_INCLUDES ${Qt5Core_INCLUDE_DIRS})
+		set(CMAKE_REQUIRED_LIBS ${Qt5Core_LIBRARIES})
+		check_cxx_source_compiles(
+		      "#include <QtCore>
+		      int main() {}"
+		    WORKS_WITHOUT_FPIC)
+		if (NOT WORKS_WITHOUT_FPIC)
+			#
+			# OK, it won't compile without -fPIC.  Try adding it.
+			#
+			set(CMAKE_REQUIRED_FLAGS "-fPIC")
+			check_cxx_source_compiles(
+			      "#include <QtCore>
+			      int main() {}"
+			    WORKS_WITH_FPIC)
+			if (NOT WORKS_WITH_FPIC)
+				#
+				# It won't build with -fPIC or without -fPIC,
+				# so we're hosed.
+				#
+				message(FATAL_ERROR "Couldn't compile Qt without -fPIC nor with -fPIC")
+			endif()
+
+			#
+			# It compiles with -fPIC, so add it back.
+			#
+			list(APPEND Qt5Widgets_EXECUTABLE_COMPILE_FLAGS "-fPIC")
+		endif()
+		set(CMAKE_REQUIRED_FLAGS "")
+		set(CMAKE_REQUIRED_INCLUDES "")
+		set(CMAKE_REQUIRED_LIBS "")
 	endif()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
 	set (QT_FOUND ON)
 	set (QT_LIBRARIES ${Qt5Widgets_LIBRARIES} ${Qt5PrintSupport_LIBRARIES})
-	if(Qt5MultimediaWidgets_FOUND)
-		set (QT_LIBRARIES ${QT_LIBRARIES} ${Qt5MultimediaWidgets_LIBRARIES})
+	if(Qt5Multimedia_FOUND)
+		set (QT_LIBRARIES ${QT_LIBRARIES} ${Qt5Multimedia_LIBRARIES})
 		# That's the name autofoo uses
-		set(QT_MULTIMEDIAWIDGETS_LIB 1)
+		set(QT_MULTIMEDIA_LIB 1)
 	endif()
 	if(Qt5MacExtras_FOUND)
 		set (QT_LIBRARIES ${QT_LIBRARIES} ${Qt5MacExtras_LIBRARIES})
@@ -898,10 +970,19 @@ elseif(QT_FOUND)
 	include_directories(${QT_INCLUDE_DIR})
 	message(STATUS "Qt includes: ${QT_INCLUDE_DIR}")
 	message(STATUS "Qt libs: ${QT_LIBRARIES}")
+	if(QT_QTMULTIMEDIA_FOUND)
+		include_directories(${QT_QTMULTIMEDIA_INCLUDE_DIR})
+		message(STATUS "QtMultimedia includes: ${QT_INCLUDE_DIR}")
+		set (QT_LIBRARIES ${QT_LIBRARIES} ${QT_QTMULTIMEDIA_LIBRARY})
+		message(STATUS "QtMultimedia libs: ${QT_QTMULTIMEDIA_LIBRARY}")
+		# That's the name autofoo uses
+		set(QT_MULTIMEDIA_LIB 1)
+	endif()
 endif()
 
 message(STATUS "C-Flags: ${CMAKE_C_FLAGS}")
 message(STATUS "CXX-Flags: ${CMAKE_CXX_FLAGS}")
+message(STATUS "Warnings as errors: ${WERROR_COMMON_FLAGS}")
 
 if(APPLE)
 	#
@@ -1084,6 +1165,8 @@ set( IN_FILES
 	image/wiretap.rc.in
 	image/wireshark.exe.manifest.in
 	packaging/macosx/Info.plist.in
+	packaging/macosx/osx-dmg.sh.in
+	packaging/macosx/Wireshark_package.pmdoc/index.xml.in
 	${CUSTOM_PLUGIN_IN_FILES}
 	ui/doxygen.cfg.in
 	ui/gtk/doxygen.cfg.in
@@ -1760,6 +1843,7 @@ if(BUILD_wireshark AND QT_FOUND)
 					$<$<CONFIG:Debug>:--debug>
 					$<$<NOT:$<CONFIG:Debug>>:--release>
 					--no-compiler-runtime
+					--verbose 10
 					"$<TARGET_FILE:wireshark>"
 			)
 			add_dependencies(copy_qt_dlls wireshark)
@@ -2298,6 +2382,51 @@ if(ENABLE_APPLICATION_BUNDLE)
 		WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/run"
 	)
 	add_dependencies(app_bundle ${PROGLIST})
+
+	add_custom_target(dmg_package_prep DEPENDS app_bundle)
+
+	ADD_CUSTOM_COMMAND(
+		OUTPUT ${CMAKE_BINARY_DIR}/packaging/macosx/PkgInfo
+		COMMAND ${CMAKE_COMMAND} -E echo APPLWshk > ${CMAKE_BINARY_DIR}/packaging/macosx/PkgInfo
+	)
+
+	ADD_CUSTOM_TARGET( dmg_package
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${PROJECT_SOURCE_DIR}/ipmap.html"
+					$<TARGET_FILE_DIR:wireshark>
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+					${CMAKE_SOURCE_DIR}/packaging/macosx/ChmodBPF
+					${CMAKE_BINARY_DIR}/run/ChmodBPF
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+					${CMAKE_SOURCE_DIR}/packaging/macosx/Resources
+					${CMAKE_BINARY_DIR}/run/Resources
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+					${CMAKE_SOURCE_DIR}/packaging/macosx/Scripts
+					${CMAKE_BINARY_DIR}/run/Scripts
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+					${CMAKE_SOURCE_DIR}/packaging/macosx/utility-launcher
+					${CMAKE_BINARY_DIR}/run/utility-launcher
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					${CMAKE_SOURCE_DIR}/COPYING
+					${CMAKE_BINARY_DIR}/run/COPYING.txt
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+					${CMAKE_SOURCE_DIR}/packaging/macosx/Wireshark_package.pmdoc
+					${CMAKE_BINARY_DIR}/run/Wireshark_package.pmdoc
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					${CMAKE_BINARY_DIR}/packaging/macosx/Wireshark_package.pmdoc/index.xml
+					${CMAKE_BINARY_DIR}/run/Wireshark_package.pmdoc/index.xml
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					${CMAKE_SOURCE_DIR}/packaging/macosx/dmg_background.png
+					${CMAKE_BINARY_DIR}/run/dmg_background.png
+		COMMAND bash -x ${CMAKE_BINARY_DIR}/packaging/macosx/osx-dmg.sh
+			--source-directory ${CMAKE_SOURCE_DIR}/packaging/macosx
+		# Unlike nsis_package_prep + nsis_package, we can add a direct
+		# dependency here.
+		DEPENDS dmg_package_prep
+		# We create Wireshark.app in "run". Do our work there.
+		WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/run
+	)
+
 endif()
 
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/androiddump 1 )
@@ -2358,11 +2487,11 @@ set(CLEAN_FILES
 	${androiddump_FILES}
 )
 
-if (WERROR)
+if (WERROR_COMMON_FLAGS)
 	set_source_files_properties(
 		${CLEAN_FILES}
 		PROPERTIES
-		COMPILE_FLAGS -Werror
+		COMPILE_FLAGS ${WERROR_COMMON_FLAGS}
 	)
 endif()
 
@@ -2476,6 +2605,33 @@ add_custom_target(test-programs
 )
 set_target_properties(test-programs PROPERTIES FOLDER "Tests")
 
+if (WIN32)
+	file (TO_NATIVE_PATH ${CMAKE_SOURCE_DIR}/tools/Get-HardenFlags.ps1 _win_harden_flags)
+	add_custom_target(hardening-check
+		COMMAND ${POWERSHELL_COMMAND} "${_win_harden_flags}" "${CMAKE_BINARY_DIR}"
+		DEPENDS ${PROGLIST}
+		COMMENT "Checking binaries for security features"
+	)
+	set_target_properties(hardening-check PROPERTIES FOLDER "Tests")
+else ()
+	find_program(HARDENING_CHECK_EXECUTABLE hardening-check
+		DOC "Path to the hardening-check utility."
+	)
+	if (NOT "${HARDENING_CHECK_EXECUTABLE}" STREQUAL "HARDENING_CHECK_EXECUTABLE-NOTFOUND")
+		foreach(_prog ${PROGLIST})
+			get_target_property(_prog_dir ${_prog} RUNTIME_OUTPUT_DIRECTORY)
+			if (${_prog_dir} STREQUAL "_prog_dir-NOTFOUND")
+				set(_prog_dir "${CMAKE_BINARY_DIR}/run")
+			endif()
+			set(_prog_paths ${_prog_paths} "${_prog_dir}/${_prog}")
+		endforeach()
+		add_custom_target(hardening-check
+			COMMAND ${HARDENING_CHECK_EXECUTABLE} ${_prog_paths}
+			DEPENDS ${PROGLIST}
+			COMMENT "Checking binaries for security features"
+		)
+	endif()
+endif()
 
 #
 # Editor modelines  -  http://www.wireshark.org/tools/modelines.html

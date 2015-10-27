@@ -37,14 +37,11 @@
 #ifdef HAVE_LIBGNUTLS
 #include <gnutls/x509.h>
 #include <gnutls/pkcs12.h>
-
-#include "ws_symbol_export.h"
-
-#define SSL_DECRYPT_DEBUG
 #endif /* HAVE_LIBGNUTLS */
 
 #ifdef HAVE_LIBGCRYPT
 #define SSL_CIPHER_CTX gcry_cipher_hd_t
+#define SSL_DECRYPT_DEBUG
 #else  /* HAVE_LIBGCRYPT */
 #define SSL_CIPHER_CTX void*
 #endif /* HAVE_LIBGCRYPT */
@@ -418,23 +415,6 @@ typedef struct _SslAssociation {
     gboolean from_key_list;
 } SslAssociation;
 
-typedef struct _SslService {
-    address addr;
-    guint port;
-} SslService;
-
-typedef struct _Ssl_private_key {
-#ifdef HAVE_LIBGNUTLS
-    gnutls_x509_crt_t     x509_cert;
-    gnutls_x509_privkey_t x509_pkey;
-#ifdef HAVE_LIBGCRYPT
-    gcry_sexp_t           sexp_pkey;
-#endif
-#else
-    void                  *_dummy; /* A struct requires at least one member. */
-#endif
-} Ssl_private_key_t;
-
 /* User Access Table */
 typedef struct _ssldecrypt_assoc_t {
     char* ipaddr;
@@ -507,21 +487,6 @@ ssl_data_set(StringInfo* buf, const guchar* src, guint len);
 extern gint
 ssl_cipher_setiv(SSL_CIPHER_CTX *cipher, guchar* iv, gint iv_len);
 
-/** Load an RSA private key from specified file
- @param fp the file that contain the key data
- @return a pointer to the loaded key on success, or NULL */
-extern Ssl_private_key_t *
-ssl_load_key(FILE* fp);
-
-/** Deallocate the memory used for specified key
- @param key pointer to the key to be freed */
-void
-ssl_free_key(Ssl_private_key_t* key);
-
-/* Find private key in associations */
-extern void
-ssl_find_private_key(SslDecryptSession *ssl_session, GHashTable *key_hash, GTree* associations, packet_info *pinfo);
-
 /** Search for the specified cipher suite id
  @param num the id of the cipher suite to be searched
  @param cs pointer to the cipher suite struct to be filled
@@ -561,14 +526,9 @@ ssl_decrypt_record(SslDecryptSession* ssl,SslDecoder* decoder, gint ct,
 
 
 /* Common part bitween SSL and DTLS dissectors */
-/* Hash Functions for TLS/DTLS sessions table and private keys table */
-extern gint
-ssl_equal (gconstpointer v, gconstpointer v2);
+/* Hash Functions for RSA private keys table */
 
-extern guint
-ssl_hash  (gconstpointer v);
-
-extern gint
+extern gboolean
 ssl_private_key_equal (gconstpointer v, gconstpointer v2);
 
 extern guint
@@ -577,7 +537,8 @@ ssl_private_key_hash  (gconstpointer v);
 /* private key table entries have a scope 'larger' then packet capture,
  * so we can't rely on wmem_file_scope function */
 extern void
-ssl_private_key_free(gpointer id, gpointer key, gpointer dummy _U_);
+ssl_private_key_free(gpointer key);
+
 
 /* handling of association between tls/dtls ports and clear text protocol */
 extern void
@@ -633,8 +594,15 @@ ssl_parse_key_list(const ssldecrypt_assoc_t * uats, GHashTable *key_hash, GTree*
 extern void
 ssl_save_session(SslDecryptSession* ssl, GHashTable *session_hash);
 
+#ifdef  HAVE_LIBGCRYPT
 extern void
 ssl_finalize_decryption(SslDecryptSession *ssl, ssl_master_key_map_t *mk_map);
+#else /* ! HAVE_LIBGCRYPT */
+static inline void
+ssl_finalize_decryption(SslDecryptSession *ssl _U_, ssl_master_key_map_t *mk_map _U_)
+{
+}
+#endif /* ! HAVE_LIBGCRYPT */
 
 extern gboolean
 ssl_is_valid_content_type(guint8 type);
@@ -821,7 +789,8 @@ ssl_dissect_hnd_new_ses_ticket(ssl_common_dissect_t *hf, tvbuff_t *tvb,
 extern void
 ssl_dissect_hnd_cert(ssl_common_dissect_t *hf, tvbuff_t *tvb, proto_tree *tree,
                      guint32 offset, packet_info *pinfo,
-                     const SslSession *session, gint is_from_server);
+                     const SslSession *session, SslDecryptSession *ssl,
+                     GHashTable *key_hash, gint is_from_server);
 
 extern void
 ssl_dissect_hnd_cert_req(ssl_common_dissect_t *hf, tvbuff_t *tvb,

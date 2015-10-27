@@ -38,6 +38,7 @@
 #include <epan/prefs.h>
 #include <epan/decode_as.h>
 #include <epan/tap.h>
+#include <wsutil/utf8_entities.h>
 
 #include "packet-bluetooth.h"
 #include "packet-bthci_sco.h"
@@ -714,9 +715,6 @@ static const value_string evt_master_clock_accuray[] = {
     { 0x07, "20 ppm" },
     { 0, NULL }
 };
-
-/* XXX - Should be pulled from utf8_entities.h */
-#define UTF8_MICRO_SIGN "\xc2\xb5"      /* 181 / 0xb5 */
 
 static const value_string evt_air_mode_vals[] = {
     { 0x00,  UTF8_MICRO_SIGN "-law log" },
@@ -3976,12 +3974,12 @@ dissect_bthci_evt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
             break;
     }
 
-    SET_ADDRESS(&pinfo->src, AT_STRINGZ,     11, "controller");
-    SET_ADDRESS(&pinfo->dst, AT_STRINGZ,      5, "host");
-    SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, 11, "controller");
-    SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ,  5, "host");
-    SET_ADDRESS(&pinfo->dl_src,  AT_STRINGZ, 11, "controller");
-    SET_ADDRESS(&pinfo->dl_dst,  AT_STRINGZ,  5, "host");
+    set_address(&pinfo->src, AT_STRINGZ,     11, "controller");
+    set_address(&pinfo->dst, AT_STRINGZ,      5, "host");
+    set_address(&pinfo->net_src, AT_STRINGZ, 11, "controller");
+    set_address(&pinfo->net_dst, AT_STRINGZ,  5, "host");
+    set_address(&pinfo->dl_src,  AT_STRINGZ, 11, "controller");
+    set_address(&pinfo->dl_dst,  AT_STRINGZ,  5, "host");
     if (!pinfo->fd->flags.visited) {
         address *addr;
 
@@ -5315,9 +5313,9 @@ proto_register_bthci_evt(void)
             "SCO Flow Control Enable", HFILL }
         },
         { &hf_bthci_evt_window,
-          { "Interval", "bthci_evt.window",
+          { "Window", "bthci_evt.window",
             FT_UINT16, BASE_DEC, NULL, 0x0,
-            "Window", HFILL }
+            NULL, HFILL }
         },
         { &hf_bthci_evt_input_unused,
           { "Unused bits", "bthci_evt.voice.unused",
@@ -6102,7 +6100,7 @@ proto_register_bthci_evt(void)
     };
 
     static ei_register_info ei[] = {
-        { &ei_event_undecoded,            { "bthci_evt.expert.event.undecoded",                 PI_PROTOCOL, PI_UNDECODED, "Event undecoded", EXPFILL }},
+        { &ei_event_undecoded,            { "bthci_evt.expert.event.undecoded",                 PI_UNDECODED, PI_NOTE, "Event undecoded", EXPFILL }},
         { &ei_event_unknown_event,        { "bthci_evt.expert.event.unknown_event",             PI_PROTOCOL, PI_WARN,      "Unknown event", EXPFILL }},
         { &ei_event_unknown_command,      { "bthci_evt.expert.event.unknown_command",           PI_PROTOCOL, PI_WARN,      "Unknown command", EXPFILL }},
         { &ei_manufacturer_data_changed,  { "bthci_evt.expert.event.manufacturer_data_changed", PI_PROTOCOL, PI_WARN,      "Manufacturer data changed", EXPFILL }}

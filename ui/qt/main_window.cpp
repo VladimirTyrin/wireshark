@@ -121,6 +121,21 @@ static void plugin_if_mainwindow_preference(gconstpointer user_data)
     }
 }
 
+void plugin_if_mainwindow_gotoframe(gconstpointer user_data)
+{
+    if ( gbl_cur_main_window_ != NULL && user_data != NULL )
+    {
+        GHashTable * dataSet = (GHashTable *) user_data;
+        gpointer framenr;
+
+        if ( g_hash_table_lookup_extended(dataSet, "frame_nr", NULL, &framenr ) )
+        {
+            if ( GPOINTER_TO_UINT(framenr) != 0 )
+                gbl_cur_main_window_->gotoFrame(GPOINTER_TO_UINT(framenr));
+        }
+    }
+}
+
 gpointer
 simple_dialog(ESD_TYPE_E type, gint btn_mask, const gchar *msg_format, ...)
 {
@@ -265,13 +280,14 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(df_edit, SIGNAL(popFilterSyntaxStatus()), main_ui_->statusBar, SLOT(popFilterStatus()));
     connect(df_edit, SIGNAL(pushFilterSyntaxWarning(const QString&)),
             main_ui_->statusBar, SLOT(pushTemporaryStatus(const QString&)));
-    connect(df_edit, SIGNAL(filterPackets(QString&,bool)), this, SLOT(filterPackets(QString&,bool)));
-    connect(df_edit, SIGNAL(addBookmark(QString)), this, SLOT(addDisplayFilterButton(QString)));
+    connect(df_edit, SIGNAL(filterPackets(QString,bool)), this, SLOT(filterPackets(QString,bool)));
+    connect(wsApp, SIGNAL(preferencesChanged()), df_edit, SLOT(checkFilter()));
+
     connect(df_edit, SIGNAL(textChanged(QString)), funnel_statistics_, SLOT(displayFilterTextChanged(QString)));
     connect(funnel_statistics_, SIGNAL(setDisplayFilter(QString)), df_edit, SLOT(setText(QString)));
     connect(funnel_statistics_, SIGNAL(applyDisplayFilter()), df_combo_box_, SLOT(applyDisplayFilter()));
-    connect(funnel_statistics_, SIGNAL(openCaptureFile(QString&,QString&)),
-            this, SLOT(openCaptureFile(QString&,QString&)));
+    connect(funnel_statistics_, SIGNAL(openCaptureFile(QString,QString)),
+            this, SLOT(openCaptureFile(QString,QString)));
     connect(this, SIGNAL(displayFilterSuccess(bool)), df_edit, SLOT(displayFilterSuccess(bool)));
 
     initMainToolbarIcons();
@@ -330,11 +346,11 @@ MainWindow::MainWindow(QWidget *parent) :
     main_ui_->menuHelp->insertAction(update_sep, update_action);
     connect(update_action, SIGNAL(triggered()), this, SLOT(checkForUpdates()));
 #endif
-    master_split_.setObjectName(tr("splitterMaster"));
-    extra_split_.setObjectName(tr("splitterExtra"));
+    master_split_.setObjectName("splitterMaster");
+    extra_split_.setObjectName("splitterExtra");
     main_ui_->mainStack->addWidget(&master_split_);
 
-    empty_pane_.setObjectName(tr("emptyPane"));
+    empty_pane_.setObjectName("emptyPane");
 
     packet_list_ = new PacketList(&master_split_);
 
@@ -359,6 +375,8 @@ MainWindow::MainWindow(QWidget *parent) :
     updatePreferenceActions();
     setForCaptureInProgress(false);
 
+    setTabOrder(df_combo_box_, packet_list_);
+
     connect(&capture_file_, SIGNAL(captureCapturePrepared(capture_session *)),
             this, SLOT(captureCapturePrepared(capture_session *)));
     connect(&capture_file_, SIGNAL(captureCaptureUpdateStarted(capture_session *)),
@@ -377,6 +395,15 @@ MainWindow::MainWindow(QWidget *parent) :
             this, SLOT(captureCaptureFailed(capture_session *)));
     connect(&capture_file_, SIGNAL(captureCaptureUpdateContinue(capture_session*)),
             main_ui_->statusBar, SLOT(updateCaptureStatistics(capture_session*)));
+
+    connect(&capture_file_, SIGNAL(captureCaptureUpdateStarted(capture_session *)),
+            wsApp, SLOT(captureStarted()));
+    connect(&capture_file_, SIGNAL(captureCaptureUpdateFinished(capture_session *)),
+            wsApp, SLOT(captureFinished()));
+    connect(&capture_file_, SIGNAL(captureCaptureFixedStarted(capture_session *)),
+            wsApp, SLOT(captureStarted()));
+    connect(&capture_file_, SIGNAL(captureCaptureFixedFinished(capture_session *)),
+            wsApp, SLOT(captureFinished()));
 
     connect(&capture_file_, SIGNAL(captureFileOpened()),
             this, SLOT(captureFileOpened()));
@@ -432,10 +459,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(wsApp, SIGNAL(fieldsChanged()),
             this, SLOT(fieldsChanged()));
 
+    connect(main_ui_->mainStack, SIGNAL(currentChanged(int)),
+            this, SLOT(mainStackChanged(int)));
+
     connect(main_welcome_, SIGNAL(startCapture()),
             this, SLOT(startCapture()));
-    connect(main_welcome_, SIGNAL(recentFileActivated(QString&)),
-            this, SLOT(openCaptureFile(QString&)));
+    connect(main_welcome_, SIGNAL(recentFileActivated(QString)),
+            this, SLOT(openCaptureFile(QString)));
     connect(main_welcome_, SIGNAL(pushFilterSyntaxStatus(const QString&)),
             main_ui_->statusBar, SLOT(pushFilterStatus(const QString&)));
     connect(main_welcome_, SIGNAL(popFilterSyntaxStatus()),
@@ -494,7 +524,7 @@ MainWindow::MainWindow(QWidget *parent) :
             main_ui_->preferenceEditorFrame, SLOT(editPreference(preference*,pref_module*)));
     connect(packet_list_, SIGNAL(editColumn(int)), this, SLOT(showColumnEditor(int)));
     connect(main_ui_->columnEditorFrame, SIGNAL(columnEdited()),
-            packet_list_, SLOT(redrawVisiblePackets()));
+            packet_list_, SLOT(columnsChanged()));
     connect(packet_list_, SIGNAL(doubleClicked(QModelIndex)),
             this, SLOT(openPacketDialog()));
     connect(packet_list_, SIGNAL(packetListScrolled(bool)),
@@ -533,8 +563,8 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(main_ui_->statusBar, SIGNAL(editCaptureComment()),
             this, SLOT(on_actionStatisticsCaptureFileProperties_triggered()));
 
-    connect(&file_set_dialog_, SIGNAL(fileSetOpenCaptureFile(QString&)),
-            this, SLOT(openCaptureFile(QString&)));
+    connect(&file_set_dialog_, SIGNAL(fileSetOpenCaptureFile(QString)),
+            this, SLOT(openCaptureFile(QString)));
 
 #ifdef HAVE_LIBPCAP
     QTreeWidget *iface_tree = findChild<QTreeWidget *>("interfaceTree");
@@ -562,6 +592,7 @@ MainWindow::MainWindow(QWidget *parent) :
     plugin_if_register_gui_cb(PLUGIN_IF_FILTER_ACTION_APPLY, plugin_if_mainwindow_apply_filter );
     plugin_if_register_gui_cb(PLUGIN_IF_FILTER_ACTION_PREPARE, plugin_if_mainwindow_apply_filter );
     plugin_if_register_gui_cb(PLUGIN_IF_PREFERENCE_SAVE, plugin_if_mainwindow_preference);
+    plugin_if_register_gui_cb(PLUGIN_IF_GOTO_FRAME, plugin_if_mainwindow_gotoframe);
 
     main_ui_->mainStack->setCurrentWidget(main_welcome_);
 }
@@ -626,7 +657,6 @@ void MainWindow::setPipeInputHandler(gint source, gpointer user_data, ws_process
     connect(pipe_notifier_, SIGNAL(destroyed()), this, SLOT(pipeNotifierDestroyed()));
 #endif
 }
-
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
 
@@ -906,20 +936,23 @@ void MainWindow::mergeCaptureFile()
         tmpname = NULL;
         if (merge_dlg.mergeType() == 0) {
             /* chronological order */
-            in_filenames[0] = capture_file_.capFile()->filename;
-            in_filenames[1] = file_name.toUtf8().data();
+            in_filenames[0] = g_strdup(capture_file_.capFile()->filename);
+            in_filenames[1] = qstring_strdup(file_name);
             merge_status = cf_merge_files(&tmpname, 2, in_filenames, file_type, FALSE);
         } else if (merge_dlg.mergeType() <= 0) {
             /* prepend file */
-            in_filenames[0] = file_name.toUtf8().data();
-            in_filenames[1] = capture_file_.capFile()->filename;
+            in_filenames[0] = qstring_strdup(file_name);
+            in_filenames[1] = g_strdup(capture_file_.capFile()->filename);
             merge_status = cf_merge_files(&tmpname, 2, in_filenames, file_type, TRUE);
         } else {
             /* append file */
-            in_filenames[0] = capture_file_.capFile()->filename;
-            in_filenames[1] = file_name.toUtf8().data();
+            in_filenames[0] = g_strdup(capture_file_.capFile()->filename);
+            in_filenames[1] = qstring_strdup(file_name);
             merge_status = cf_merge_files(&tmpname, 2, in_filenames, file_type, TRUE);
         }
+
+        g_free(in_filenames[0]);
+        g_free(in_filenames[1]);
 
         if (merge_status != CF_OK) {
             if (rfcode != NULL)
@@ -1413,7 +1446,7 @@ void MainWindow::fileAddExtension(QString &file_name, int file_type, bool compre
     }
 }
 
-bool MainWindow::testCaptureFileClose(bool from_quit, QString &before_what) {
+bool MainWindow::testCaptureFileClose(bool from_quit, QString before_what) {
     bool capture_in_progress = FALSE;
 
     if (!capture_file_.capFile() || capture_file_.capFile()->state == FILE_CLOSED)
@@ -1819,6 +1852,7 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
 {
     if (force_disable || capture_file_.capFile() == NULL || capture_file_.capFile()->state == FILE_READ_IN_PROGRESS) {
         /* We have no capture file or we're currently reading a file */
+        main_ui_->actionViewReload_as_File_Format_or_Capture->setEnabled(false);
         main_ui_->actionFileMerge->setEnabled(false);
         main_ui_->actionFileClose->setEnabled(false);
         main_ui_->actionFileSave->setEnabled(false);
@@ -1832,6 +1866,7 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
         main_ui_->menuFileExportObjects->setEnabled(false);
         main_ui_->actionViewReload->setEnabled(false);
     } else {
+        main_ui_->actionViewReload_as_File_Format_or_Capture->setEnabled(true);
         main_ui_->actionFileMerge->setEnabled(cf_can_write_with_wiretap(capture_file_.capFile()));
 
         main_ui_->actionFileClose->setEnabled(true);
@@ -2017,6 +2052,9 @@ void MainWindow::addMenuActions(QList<QAction *> &actions, int menu_group)
         case REGISTER_STAT_GROUP_TELEPHONY_GSM:
             main_ui_->menuGSM->addAction(action);
             break;
+        case REGISTER_STAT_GROUP_TELEPHONY_LTE:
+            main_ui_->menuLTE->addAction(action);
+            break;
         case REGISTER_STAT_GROUP_TELEPHONY_MTP3:
             main_ui_->menuMTP3->addAction(action);
             break;
@@ -2082,6 +2120,9 @@ void MainWindow::removeMenuActions(QList<QAction *> &actions, int menu_group)
         case REGISTER_STAT_GROUP_TELEPHONY_GSM:
             main_ui_->menuGSM->removeAction(action);
             break;
+        case REGISTER_STAT_GROUP_TELEPHONY_LTE:
+            main_ui_->menuLTE->removeAction(action);
+            break;
         case REGISTER_STAT_GROUP_TELEPHONY_MTP3:
             main_ui_->menuMTP3->removeAction(action);
             break;
@@ -2115,6 +2156,9 @@ void MainWindow::addDynamicMenus()
 {
     // Manual additions
     wsApp->addDynamicMenuGroupItem(REGISTER_STAT_GROUP_TELEPHONY_GSM, main_ui_->actionTelephonyGsmMapSummary);
+    wsApp->addDynamicMenuGroupItem(REGISTER_STAT_GROUP_TELEPHONY_LTE, main_ui_->actionTelephonyLteMacStatistics);
+    wsApp->addDynamicMenuGroupItem(REGISTER_STAT_GROUP_TELEPHONY_LTE, main_ui_->actionTelephonyLteRlcStatistics);
+    wsApp->addDynamicMenuGroupItem(REGISTER_STAT_GROUP_TELEPHONY_LTE, main_ui_->actionTelephonyLteRlcGraph);
     wsApp->addDynamicMenuGroupItem(REGISTER_STAT_GROUP_TELEPHONY_MTP3, main_ui_->actionTelephonyMtp3Summary);
 
     // Fill in each menu
@@ -2134,6 +2178,9 @@ void MainWindow::addDynamicMenus()
     }
     if (wsApp->dynamicMenuGroupItems(REGISTER_STAT_GROUP_TELEPHONY_GSM).length() > 0) {
         main_ui_->actionTelephonyGSMPlaceholder->setVisible(false);
+    }
+    if (wsApp->dynamicMenuGroupItems(REGISTER_STAT_GROUP_TELEPHONY_LTE).length() > 0) {
+        main_ui_->actionTelephonyLTEPlaceholder->setVisible(false);
     }
     if (wsApp->dynamicMenuGroupItems(REGISTER_STAT_GROUP_TELEPHONY_MTP3).length() > 0) {
         main_ui_->actionTelephonyMTP3Placeholder->setVisible(false);
@@ -2195,6 +2242,25 @@ void MainWindow::externalMenuHelper(ext_menu_t * menu, QMenu  * subMenu, gint de
     }
 }
 
+QMenu * MainWindow::searchSubMenu(QString objectName)
+{
+    QList<QMenu*> lst;
+
+    if ( objectName.length() > 0 )
+    {
+        QString searchName = QString("menu") + objectName;
+
+        lst = main_ui_->menuBar->findChildren<QMenu*>();
+        foreach (QMenu* m, lst)
+        {
+            if ( QString::compare( m->objectName(), searchName ) == 0 )
+                return m;
+        }
+    }
+
+    return 0;
+}
+
 void MainWindow::addExternalMenus()
 {
     QMenu * subMenu = NULL;
@@ -2216,7 +2282,15 @@ void MainWindow::addExternalMenus()
         }
 
         /* Create main submenu and add it to the menubar */
-        subMenu = main_ui_->menuBar->addMenu(menu->label);
+        if ( menu->parent_menu != NULL )
+        {
+            QMenu * sortUnderneath = searchSubMenu(QString(menu->parent_menu));
+            if ( sortUnderneath != NULL)
+                subMenu = sortUnderneath->addMenu(menu->label);
+        }
+
+        if ( subMenu == NULL )
+            subMenu = main_ui_->menuBar->addMenu(menu->label);
 
         /* This will generate the action structure for each menu. It is recursive,
          * therefore a sub-routine, and we have a depth counter to prevent endless loops. */

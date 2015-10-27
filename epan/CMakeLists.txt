@@ -76,6 +76,7 @@ set(DFILTER_FILES
 	dfilter/sttype-integer.c
 	dfilter/sttype-pointer.c
 	dfilter/sttype-range.c
+	dfilter/sttype-set.c
 	dfilter/sttype-string.c
 	dfilter/sttype-test.c
 	dfilter/syntax-tree.c
@@ -303,7 +304,6 @@ set(DIRTY_ASN1_DISSECTOR_SRC
 )
 
 set(DIRTY_CORBA_IDL_DISSECTOR_SRC
-	dissectors/packet-coseventcomm.c
 	dissectors/packet-cosnaming.c
 	dissectors/packet-gias.c
 	dissectors/packet-parlay.c
@@ -507,6 +507,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-cops.c
 	dissectors/packet-corosync-totemnet.c
 	dissectors/packet-corosync-totemsrp.c
+	dissectors/packet-coseventcomm.c
 	dissectors/packet-cosine.c
 	dissectors/packet-couchbase.c
 	dissectors/packet-cp2179.c
@@ -1086,6 +1087,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-ntp.c
 	dissectors/packet-null.c
 	dissectors/packet-nwmtp.c
+	dissectors/packet-nwp.c
 	dissectors/packet-oampdu.c
 	dissectors/packet-ocfs2.c
 	dissectors/packet-oicq.c
@@ -1324,6 +1326,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-tali.c
 	dissectors/packet-tapa.c
 	dissectors/packet-tcp.c
+	dissectors/packet-tcpros.c
 	dissectors/packet-tdmoe.c
 	dissectors/packet-tdmop.c
 	dissectors/packet-tds.c
@@ -1433,6 +1436,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-xcsl.c
 	dissectors/packet-xdmcp.c
 	dissectors/packet-xip.c
+	dissectors/packet-xip-serval.c
 	dissectors/packet-xmcp.c
 	dissectors/packet-xml.c
 	dissectors/packet-xmpp-conference.c
@@ -1600,7 +1604,6 @@ set(LIBWIRESHARK_FILES
 	crc8-tvb.c
 	decode_as.c
 	disabled_protos.c
-	dissector_filters.c
 	dvb_chartbl.c
 	dwarf.c
 	epan.c
@@ -1721,11 +1724,11 @@ set(CLEAN_FILES
 	${WSLUA_FILES}
 )
 
-if (WERROR)
+if (WERROR_COMMON_FLAGS)
 	set_source_files_properties(
 		${CLEAN_FILES}
 		PROPERTIES
-		COMPILE_FLAGS -Werror
+		COMPILE_FLAGS ${WERROR_COMMON_FLAGS}
 	)
 endif()
 
@@ -1747,7 +1750,7 @@ add_library(epan ${LINK_MODE_LIB}
 	${CMAKE_BINARY_DIR}/image/libwireshark.rc
 )
 
-set(FULL_SO_VERSION "0.0.9")
+set(FULL_SO_VERSION "0.0.0")
 
 set_target_properties(epan PROPERTIES COMPILE_DEFINITIONS "WS_BUILD_DLL")
 set_target_properties(epan PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")

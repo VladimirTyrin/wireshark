@@ -1484,7 +1484,8 @@ dissector_get_string_handle(dissector_table_t sub_dissectors,
 {
 	dtbl_entry_t *dtbl_entry;
 
-	if (!string) return 0;
+	/* XXX ASSERT instead ? */
+	if (!string) return NULL;
 	dtbl_entry = find_string_dtbl_entry(sub_dissectors, string);
 	if (dtbl_entry != NULL)
 		return dtbl_entry->current;
@@ -1497,7 +1498,8 @@ dissector_get_default_string_handle(const char *name, const gchar *string)
 {
 	dissector_table_t sub_dissectors;
 
-	if (!string) return 0;
+	/* XXX ASSERT instead ? */
+	if (!string) return NULL;
 	sub_dissectors = find_dissector_table(name);
 	if (sub_dissectors != NULL) {
 		dtbl_entry_t *dtbl_entry = find_string_dtbl_entry(sub_dissectors, string);
@@ -2109,29 +2111,6 @@ heur_dissector_delete(const char *name, heur_dissector_t dissector, const int pr
 	}
 }
 
-void
-heur_dissector_set_enabled(const char *name, heur_dissector_t dissector, const int proto, const gboolean enabled) {
-	heur_dissector_list_t  sub_dissectors = find_heur_dissector_list(name);
-	GSList                *found_entry;
-	heur_dtbl_entry_t      hdtbl_entry;
-
-	/* sanity check */
-	g_assert(sub_dissectors != NULL);
-
-	hdtbl_entry.dissector = dissector;
-
-	hdtbl_entry.protocol  = find_protocol_by_id(proto);
-
-	found_entry = g_slist_find_custom(sub_dissectors->dissectors,
-	    (gpointer) &hdtbl_entry, find_matching_heur_dissector);
-
-	if (found_entry) {
-		heur_dtbl_entry_t *hdtbl_entry_p;
-		hdtbl_entry_p = (heur_dtbl_entry_t *)found_entry->data;
-		hdtbl_entry_p->enabled = enabled;
-	}
-}
-
 gboolean
 dissector_try_heuristic(heur_dissector_list_t sub_dissectors, tvbuff_t *tvb,
 			packet_info *pinfo, proto_tree *tree, heur_dtbl_entry_t **heur_dtbl_entry, void *data)
@@ -2277,7 +2256,7 @@ dissector_all_heur_tables_foreach_table_func (gpointer key, const gpointer value
 	heur_dissector_foreach_table_info_t *info;
 
 	info = (heur_dissector_foreach_table_info_t *)user_data;
-	(*info->caller_func)((gchar*)key, (heur_dissector_list_t *)value, info->caller_data);
+    (*info->caller_func)((gchar*)key, (struct heur_dissector_list *)value, info->caller_data);
 }
 
 /*
@@ -2287,10 +2266,10 @@ dissector_all_heur_tables_foreach_table_func (gpointer key, const gpointer value
 static void
 dissector_all_heur_tables_foreach_list_func (gpointer key, gpointer user_data)
 {
-	heur_dissector_list_t               *list;
+    struct heur_dissector_list          *list;
 	heur_dissector_foreach_table_info_t *info;
 
-	list = (heur_dissector_list_t *)g_hash_table_lookup(heur_dissector_lists, key);
+    list = (struct heur_dissector_list *)g_hash_table_lookup(heur_dissector_lists, key);
 	info = (heur_dissector_foreach_table_info_t *)user_data;
 	(*info->caller_func)((gchar*)key, list, info->caller_data);
 }
@@ -2335,7 +2314,7 @@ display_heur_dissector_table_entries(const char *table_name,
 }
 
 static void
-dissector_dump_heur_decodes_display(const gchar *table_name, heur_dissector_list_t *listptr _U_, const gpointer user_data _U_)
+dissector_dump_heur_decodes_display(const gchar *table_name, struct heur_dissector_list *listptr _U_, const gpointer user_data _U_)
 {
 	heur_dissector_table_foreach(table_name, display_heur_dissector_table_entries, NULL);
 }

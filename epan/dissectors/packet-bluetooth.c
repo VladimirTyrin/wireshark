@@ -114,9 +114,9 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x1112,   "Headset Audio Gateway" },
     { 0x1113,   "WAP" },
     { 0x1114,   "WAP Client" },
-    { 0x1115,   "PANU" },
-    { 0x1116,   "NAP" },
-    { 0x1117,   "GN" },
+    { 0x1115,   "PAN PANU" },
+    { 0x1116,   "PAN NAP" },
+    { 0x1117,   "PAN GN" },
     { 0x1118,   "Direct Printing" },
     { 0x1119,   "Reference Printing" },
     { 0x111A,   "Imaging" },
@@ -579,8 +579,15 @@ const value_string bluetooth_uuid_vals[] = {
 value_string_ext bluetooth_uuid_vals_ext = VALUE_STRING_EXT_INIT(bluetooth_uuid_vals);
 
 const bluetooth_uuid_custom_t bluetooth_uuid_custom[] = {
-    { {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x02, 0xEE, 0x00, 0x00, 0x02}, 16, "SyncML Server" },
-    { {0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x02, 0xEE, 0x00, 0x00, 0x02}, 16, "SyncML Client" },
+    { {0x00, 0x00, 0x00, 0x01,    0x00, 0x00,   0x10, 0x00,   0x80, 0x00,   0x00, 0x02, 0xEE, 0x00, 0x00, 0x02}, 16, "SyncML Server" },
+    { {0x00, 0x00, 0x00, 0x02,    0x00, 0x00,   0x10, 0x00,   0x80, 0x00,   0x00, 0x02, 0xEE, 0x00, 0x00, 0x02}, 16, "SyncML Client" },
+    { {0x6E, 0x40, 0x00, 0x01,    0xB5, 0xA3,   0xF3, 0x93,   0xE0, 0xA9,   0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E}, 16, "Nordic UART Service" },
+    { {0x6E, 0x40, 0x00, 0x02,    0xB5, 0xA3,   0xF3, 0x93,   0xE0, 0xA9,   0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E}, 16, "Nordic UART Tx" },
+    { {0x6E, 0x40, 0x00, 0x03,    0xB5, 0xA3,   0xF3, 0x93,   0xE0, 0xA9,   0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E}, 16, "Nordic UART Rx" },
+    { {0x00, 0x00, 0x15, 0x30,    0x12, 0x12,   0xEF, 0xDE,   0x15, 0x23,   0x78, 0x5F, 0xEA, 0xBC, 0xD1, 0x23}, 16, "Nordic DFU Service" },
+    { {0x00, 0x00, 0x15, 0x31,    0x12, 0x12,   0xEF, 0xDE,   0x15, 0x23,   0x78, 0x5F, 0xEA, 0xBC, 0xD1, 0x23}, 16, "Nordic DFU Control Point" },
+    { {0x00, 0x00, 0x15, 0x32,    0x12, 0x12,   0xEF, 0xDE,   0x15, 0x23,   0x78, 0x5F, 0xEA, 0xBC, 0xD1, 0x23}, 16, "Nordic DFU Packet" },
+
     { {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, NULL},
 };
 
@@ -1244,10 +1251,30 @@ get_uuid(tvbuff_t *tvb, gint offset, gint size)
     }
 
     uuid.size = size;
-    tvb_memcpy(tvb, uuid.data, offset, size);
+    if (size == 2) {
+        uuid.data[0] = tvb_get_guint8(tvb, offset + 1);
+        uuid.data[1] = tvb_get_guint8(tvb, offset);
+    } else if (size == 16) {
+        uuid.data[0] = tvb_get_guint8(tvb, offset + 15);
+        uuid.data[1] = tvb_get_guint8(tvb, offset + 14);
+        uuid.data[2] = tvb_get_guint8(tvb, offset + 13);
+        uuid.data[3] = tvb_get_guint8(tvb, offset + 12);
+        uuid.data[4] = tvb_get_guint8(tvb, offset + 11);
+        uuid.data[5] = tvb_get_guint8(tvb, offset + 10);
+        uuid.data[6] = tvb_get_guint8(tvb, offset + 9);
+        uuid.data[7] = tvb_get_guint8(tvb, offset + 8);
+        uuid.data[8] = tvb_get_guint8(tvb, offset + 7);
+        uuid.data[9] = tvb_get_guint8(tvb, offset + 6);
+        uuid.data[10] = tvb_get_guint8(tvb, offset + 5);
+        uuid.data[11] = tvb_get_guint8(tvb, offset + 4);
+        uuid.data[12] = tvb_get_guint8(tvb, offset + 3);
+        uuid.data[13] = tvb_get_guint8(tvb, offset + 2);
+        uuid.data[14] = tvb_get_guint8(tvb, offset + 1);
+        uuid.data[15] = tvb_get_guint8(tvb, offset);
+    }
 
     if (size == 2) {
-        uuid.bt_uuid = uuid.data[0] | uuid.data[1] << 8;
+        uuid.bt_uuid = uuid.data[1] | uuid.data[0] << 8;
     } else {
         if (uuid.data[0] == 0x00 && uuid.data[1] == 0x00 &&
                 uuid.data[4]  == 0x00 && uuid.data[5]  == 0x00 && uuid.data[6]  == 0x10 &&
@@ -1261,12 +1288,42 @@ get_uuid(tvbuff_t *tvb, gint offset, gint size)
 }
 
 gchar *
+print_numeric_uuid(bluetooth_uuid_t *uuid)
+{
+    if (!(uuid && uuid->size > 0))
+        return NULL;
+
+    if (uuid->size != 16) {
+        return bytes_to_str(wmem_packet_scope(), uuid->data, uuid->size);
+    } else {
+        gchar *text;
+
+        text = (gchar *) wmem_alloc(wmem_packet_scope(), 38);
+        bytes_to_hexstr(&text[0], uuid->data, 4);
+        text[8] = '-';
+        bytes_to_hexstr(&text[9], uuid->data + 4, 2);
+        text[13] = '-';
+        bytes_to_hexstr(&text[14], uuid->data + 4 + 2 * 1, 2);
+        text[18] = '-';
+        bytes_to_hexstr(&text[19], uuid->data + 4 + 2 * 2, 2);
+        text[23] = '-';
+        bytes_to_hexstr(&text[24], uuid->data + 4 + 2 * 3, 6);
+        text[36] = '\0';
+
+        return text;
+    }
+
+    return NULL;
+}
+
+gchar *
 print_uuid(bluetooth_uuid_t *uuid)
 {
     if (uuid->bt_uuid) {
         return wmem_strdup(wmem_packet_scope(), val_to_str_ext_const(uuid->bt_uuid, &bluetooth_uuid_vals_ext, "Unknown"));
     } else {
-        guint i_uuid;
+        guint  i_uuid;
+        gchar *description;
 
         i_uuid = 0;
         while (bluetooth_uuid_custom[i_uuid].name) {
@@ -1282,19 +1339,14 @@ print_uuid(bluetooth_uuid_t *uuid)
             i_uuid += 1;
         }
 
-        return bytes_to_str(wmem_packet_scope(), uuid->data, uuid->size);
+        description = print_numeric_uuid(uuid);
+
+        if (description)
+            return description;
+        else
+            return (gchar *) "Unknown";
     }
 }
-
-gchar *
-print_numeric_uuid(bluetooth_uuid_t *uuid)
-{
-    if (uuid && uuid->size > 0)
-        return bytes_to_str(wmem_packet_scope(), uuid->data, uuid->size);
-
-    return NULL;
-}
-
 
 static bluetooth_data_t *
 dissect_bluetooth_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)

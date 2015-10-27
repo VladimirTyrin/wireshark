@@ -50,7 +50,6 @@ ui_toolkit="qt"
 wireshark_bin_name="wireshark"
 
 binary_list="
-	androiddump
 	capinfos
 	dftest
 	dumpcap
@@ -60,6 +59,7 @@ binary_list="
 	rawshark
 	text2pcap
 	tshark
+	extcap/androiddump
 "
 cs_binary_list=
 
@@ -153,8 +153,6 @@ do
 	shift 1
 done
 
-echo -e "\nCREATE WIRESHARK APP BUNDLE\n"
-
 # Safety tests
 if [ ! -e "$LIBPREFIX" ]; then
 	echo "Cannot find the directory containing the libraries: $LIBPREFIX" >&2
@@ -162,7 +160,10 @@ if [ ! -e "$LIBPREFIX" ]; then
 fi
 
 if [ "$create_bundle" = "true" ]; then
+	echo -e "\nCREATE WIRESHARK APP BUNDLE\n"
+
 	for binary in $wireshark_bin_name $binary_list ; do
+		binary=$( basename $binary )
 		if [ ! -x "$binary_path/$binary" ]; then
 			echo "Couldn't find $binary (or it's not executable)" >&2
 			exit 1
@@ -261,6 +262,7 @@ create_bundle() {
 	fi
 
 	mkdir -p "$pkgexec"
+	mkdir -p "$pkgexec/extcap"
 	mkdir -p "$pkgbin"
 	mkdir -p "$pkgplugin"
 
@@ -300,9 +302,15 @@ create_bundle() {
 		done
 	elif [ "$ui_toolkit" = "qt" ] ; then
 		for binary in $binary_list ; do
+			bin_dest="$pkgexec"
+			if [ "$( dirname $binary )" == "extcap" ] ; then
+				binary=$( basename $binary )
+				bin_dest="$pkgexec/$( dirname $binary )"
+			fi
+
 			# Copy the binary to its destination
-			cp -v "$binary_path/$binary" "$pkgexec"
-			cs_binary_list="$cs_binary_list $pkgexec/$binary"
+			cp -v "$binary_path/$binary" "$bin_dest"
+			cs_binary_list="$cs_binary_list $bin_dest/$binary"
 		done
 	fi
 
@@ -424,6 +432,14 @@ if [ "$create_bundle" = "true" ]; then
 	create_bundle
 fi
 
+if [ -z "$cs_binary_list" ]; then
+	# Assumes Qt.
+	for binary in Wireshark $binary_list ; do
+		cs_binary_list="$cs_binary_list $pkgexec/$binary"
+	done
+fi
+
+
 echo -e "\nFixing up $bundle...\n"
 
 # Find out libs we need from Fink, MacPorts, or from a custom install
@@ -487,6 +503,10 @@ if [ "$strip" = "true" ]; then
 fi
 
 if [ "$ui_toolkit" = "qt" ] ; then
+	#
+	# This may not work on Qt 5.5.0 or 5.5.1:
+	# https://bugreports.qt.io/browse/QTBUG-47868
+	#
 	macdeployqt "$bundle" -verbose=2 || exit 1
 
 	#
@@ -502,92 +522,134 @@ fi
 #
 rpathify_file () {
 	# Fix a given executable, library, or plugin to be relocatable
-	if [ ! -d "$1" ]; then
-		#
-		# OK, what type of file is this?
-		#
-		filetype=`otool -hv "$1" | sed -n '4p' | awk '{print $5}'`
-		case "$filetype" in
-
-		EXECUTE|DYLIB|BUNDLE)
-			#
-			# Executable, library, or plugin.  (Plugins
-			# can be either DYLIB or BUNDLE; shared
-			# libraries are DYLIB.)
-			#
-			# For DYLIB and BUNDLE, fix the shared
-			# library identification.
-			#
-			if [[ "$filetype" = "DYLIB" || "$filetype" = "BUNDLE" ]]; then
-				echo "Changing shared library identification of $1"
-				base=`echo $1 | awk -F/ '{print $NF}'`
-				#
-				# The library will end up in a directory in
-				# the rpath; this is what we should change its
-				# ID to.
-				#
-				to=@rpath/$base
-				/usr/bin/install_name_tool -id $to $1
-			fi
-
-			#
-			# Add -Wl,-rpath,@executable_path/../Frameworks
-			# to the rpath, so it'll find the bundled
-			# frameworks and libraries if they're referred
-			# to by @rpath/, rather than having a wrapper
-			# script tweak DYLD_LIBRARY_PATH.
-			#
-			echo "Adding @executable_path/../Frameworks to rpath of $1"
-			/usr/bin/install_name_tool -add_rpath @executable_path/../Frameworks $1
-
-			#
-			# Show the minimum supported version of Mac OS X
-			# for each executable or library
-			#
-			if [[ "$filetype" = "EXECUTE" || "$filetype" = "DYLIB" ]] && [[ "$VERSION" -ge "7" ]] ; then
-				echo "Minimum Mac OS X version for $1:"
-				otool -l $1 | grep -A3 LC_VERSION_MIN_MACOSX
-			fi
-
-			#
-			# Get the list of dynamic libraries on which this
-			# file depends, and select only the libraries that
-			# are in $LIBPREFIX, as those are the only ones
-			# that we'll be shipping in the app bundle; the
-			# other libraries are system-supplied or supplied
-			# as part of X11, will be expected to be on the
-			# system on which the bundle will be installed,
-			# and should be referred to by their full pathnames.
-			#
-			libs="`\
-				otool -L $1 \
-				| fgrep compatibility \
-				| cut -d\( -f1 \
-				| egrep -v "$exclude_prefixes" \
-				| sort \
-				| uniq \
-				`"
-
-			for lib in $libs; do
-				#
-				# Get the file name of the library.
-				#
-				base=`echo $lib | awk -F/ '{print $NF}'`
-				#
-				# The library will end up in a directory in
-				# the rpath; this is what we should change its
-				# file name to.
-				#
-				to=@rpath/$base
-				#
-				# Change the reference to that library.
-				#
-				echo "Changing reference to $lib to $to in $1"
-				/usr/bin/install_name_tool -change $lib $to $1
-			done
-			;;
-		esac
+	if [ ! -f "$1" ]; then
+		return 0;
 	fi
+
+	#
+	# OK, what type of file is this?
+	#
+	filetype=$( otool -hv "$1" | sed -n '4p' | awk '{print $5}' ; exit ${PIPESTATUS[0]} )
+	if [ $? -ne 0 ] ; then
+		echo "Unable to rpathify $1 in $( pwd ): file type failed."
+		exit 1
+	fi
+
+	case "$filetype" in
+
+	EXECUTE|DYLIB|BUNDLE)
+		#
+		# Executable, library, or plugin.  (Plugins
+		# can be either DYLIB or BUNDLE; shared
+		# libraries are DYLIB.)
+		#
+		# For DYLIB and BUNDLE, fix the shared
+		# library identification.
+		#
+		if [[ "$filetype" = "DYLIB" || "$filetype" = "BUNDLE" ]]; then
+			echo "Changing shared library identification of $1"
+			base=`echo $1 | awk -F/ '{print $NF}'`
+			#
+			# The library will end up in a directory in
+			# the rpath; this is what we should change its
+			# ID to.
+			#
+			to=@rpath/$base
+			/usr/bin/install_name_tool -id $to $1
+
+			#
+			# If we're a library and we depend on something in
+			# @executable_path/../Frameworks, replace that with
+			# @rpath.
+			#
+			otool -L $1 | grep @executable_path/../Frameworks | awk '{print $1}' | \
+			while read dep_lib ; do
+				base=`echo $dep_lib | awk -F/ '{print $NF}'`
+				to="@rpath/$base"
+				echo "Changing reference to $dep_lib to $to in $1"
+				/usr/bin/install_name_tool -change $dep_lib $to $1
+			done
+		fi
+
+		#
+		# Find our local rpaths and remove them.
+		#
+		otool -l $1 | grep -A2 LC_RPATH \
+			| awk '$1=="path" && $2 !~ /^@/ {print $2}' \
+			| egrep -v "$exclude_prefixes" | \
+		while read lc_rpath ; do
+			echo "Stripping LC_RPATH $lc_rpath from $1"
+			install_name_tool -delete_rpath $lc_rpath $1
+		done
+
+		#
+		# Add -Wl,-rpath,@executable_path/../Frameworks
+		# to the rpath, so it'll find the bundled
+		# frameworks and libraries if they're referred
+		# to by @rpath/, rather than having a wrapper
+		# script tweak DYLD_LIBRARY_PATH.
+		#
+		if [[ "$filetype" = "EXECUTE" ]]; then
+			if [ -d ../Frameworks ] ; then
+				framework_path=../Frameworks
+			elif [ -d ../../Frameworks ] ; then
+				framework_path=../../Frameworks
+			else
+				echo "Unable to find relative path to Frameworks for $1 from $( pwd )"
+				exit 1
+			fi
+
+			echo "Adding @executable_path/$framework_path to rpath of $1"
+			/usr/bin/install_name_tool -add_rpath @executable_path/$framework_path $1
+		fi
+
+		#
+		# Show the minimum supported version of Mac OS X
+		# for each executable or library
+		#
+		if [[ "$filetype" = "EXECUTE" || "$filetype" = "DYLIB" ]] && [[ "$VERSION" -ge "7" ]] ; then
+			echo "Minimum Mac OS X version for $1:"
+			otool -l $1 | grep -A3 LC_VERSION_MIN_MACOSX
+		fi
+
+		#
+		# Get the list of dynamic libraries on which this
+		# file depends, and select only the libraries that
+		# are in $LIBPREFIX, as those are the only ones
+		# that we'll be shipping in the app bundle; the
+		# other libraries are system-supplied or supplied
+		# as part of X11, will be expected to be on the
+		# system on which the bundle will be installed,
+		# and should be referred to by their full pathnames.
+		#
+		libs="`\
+			otool -L $1 \
+			| fgrep compatibility \
+			| cut -d\( -f1 \
+			| egrep -v "$exclude_prefixes" \
+			| sort \
+			| uniq \
+			`"
+
+		for lib in $libs; do
+			#
+			# Get the file name of the library.
+			#
+			base=`echo $lib | awk -F/ '{print $NF}'`
+			#
+			# The library will end up in a directory in
+			# the rpath; this is what we should change its
+			# file name to.
+			#
+			to=@rpath/$base
+			#
+			# Change the reference to that library.
+			#
+			echo "Changing reference to $lib to $to in $1"
+			/usr/bin/install_name_tool -change $lib $to $1
+		done
+		;;
+	esac
 }
 
 rpathify_dir () {
@@ -606,6 +668,8 @@ rpathify_dir () {
 			done
 		fi
 		)
+		rf_ret=$?
+		if [ $rf_ret -ne 0 ] ; then exit $rf_ret ; fi
 	fi
 }
 
@@ -614,6 +678,13 @@ rpathify_files () {
 	# Fix bundle deps
 	#
 	rpathify_dir "$pkglib" "*.dylib"
+	rpathify_dir "$pkgbin" "*"
+	rpathify_dir "$pkgplugin" "*"
+
+	if [ "$ui_toolkit" = "qt" ] ; then
+		rpathify_dir "$pkgbin/extcap" "*"
+	fi
+
 	if [ "$ui_toolkit" = "gtk" ] ; then
 		rpathify_dir "$pkglib/gtk-2.0/$gtk_version/loaders" "*.so"
 		rpathify_dir "$pkglib/gtk-2.0/$gtk_version/engines" "*.so"
@@ -623,8 +694,6 @@ rpathify_files () {
 		rpathify_dir "$pkglib/gdk-pixbuf-2.0/$gtk_version/loaders" "*.so"
 		rpathify_dir "$pkglib/pango/$pango_version/modules" "*.so"
 	fi
-	rpathify_dir "$pkgbin" "*"
-	rpathify_dir "$pkgbin/extcap" "*"
 }
 
 PATHLENGTH=`echo $LIBPREFIX | wc -c`
@@ -654,21 +723,29 @@ if [ -n "$CODE_SIGN_IDENTITY" ] ; then
 	security find-identity -v -s "$CODE_SIGN_IDENTITY" -p codesigning
 
 	echo "Signing executables"
+	if [ -z "$cs_binary_list" ] ; then
+		echo "No executables specified for code signing."
+		exit 1
+	fi
 	for binary in $cs_binary_list ; do
 		codesign_file "$binary"
 	done
+
 	echo "Signing frameworks"
 	for framework in $pkglib/*.framework/Versions/*/* ; do
 		codesign_file "$framework"
 	done
+
 	echo "Signing libraries"
 	for library in $pkglib/*.dylib ; do
 		codesign_file "$library"
 	done
+
 	echo "Signing plugins"
 	for plugin in $pkgplugin/*.so ; do
 		codesign_file "$plugin"
 	done
+
 	echo "Signing $bundle"
 	codesign_file "$bundle"
 else

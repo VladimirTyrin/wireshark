@@ -94,7 +94,7 @@ public:
     void refreshLocalInterfaces();
     struct _e_prefs * readConfigurationFiles(char **gdp_path, char **dp_path);
     QList<recent_item_status *> recentItems() const;
-    void addRecentItem(const QString &filename, qint64 size, bool accessible);
+    void addRecentItem(const QString filename, qint64 size, bool accessible);
     QDir lastOpenDir();
     void setLastOpenDir(const char *dir_name);
     void setLastOpenDir(QString *dir_str);
@@ -129,6 +129,7 @@ private:
     QIcon capture_icon_;
     static QString window_title_separator_;
     QList<AppSignal> app_signals_;
+    int active_captures_;
 
 protected:
     bool event(QEvent *event);
@@ -136,7 +137,7 @@ protected:
 signals:
     void appInitialized();
     void localInterfaceListChanged();
-    void openCaptureFile(QString &cf_path, QString &display_filter, unsigned int type);
+    void openCaptureFile(QString cf_path, QString display_filter, unsigned int type);
     void recentFilesRead();
     void updateRecentItemStatus(const QString &filename, qint64 size, bool accessible);
     void splashUpdate(register_action_e action, const char *message);
@@ -156,6 +157,8 @@ signals:
 public slots:
     void clearRecentItems();
     void captureFileReadStarted();
+    void captureStarted() { active_captures_++; }
+    void captureFinished() { active_captures_--; }
     void updateTaps();
 
 private slots:

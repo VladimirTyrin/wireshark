@@ -1606,7 +1606,7 @@ dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
         return offset;
     }
 
-    if (!usb_trans_info->u.get_descriptor.index) {
+    if (!usb_trans_info->u.get_descriptor.usb_index) {
         /* list of languanges */
         while (offset >= old_offset && len > (offset - old_offset)) {
             /* wLANGID */
@@ -1845,7 +1845,7 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree,
             usb_addr->bus_id = ((const usb_address_t *)(pinfo->src.data))->bus_id;
             usb_addr->device = ((const usb_address_t *)(pinfo->src.data))->device;
             usb_addr->endpoint = GUINT32_TO_LE(endpoint);
-            SET_ADDRESS(&tmp_addr, AT_USB, USB_ADDR_LEN, (char *)usb_addr);
+            set_address(&tmp_addr, AT_USB, USB_ADDR_LEN, (char *)usb_addr);
             conversation = get_usb_conversation(pinfo, &tmp_addr, &pinfo->dst, usb_addr->endpoint, pinfo->destport);
         }
 
@@ -2106,7 +2106,7 @@ dissect_usb_setup_get_descriptor_request(packet_info *pinfo, proto_tree *tree,
 
     /* descriptor index */
     proto_tree_add_item(tree, hf_usb_descriptor_index, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    usb_trans_info->u.get_descriptor.index = tvb_get_guint8(tvb, offset);
+    usb_trans_info->u.get_descriptor.usb_index = tvb_get_guint8(tvb, offset);
     offset += 1;
 
     /* descriptor type */
@@ -2824,7 +2824,7 @@ try_dissect_next_protocol(proto_tree *tree, tvbuff_t *next_tvb, packet_info *pin
                     dst_addr->bus_id = usb_conv_info->bus_id;
                     dst_addr->device = usb_conv_info->device_address;
                     dst_addr->endpoint = dst_endpoint = GUINT32_TO_LE(endpoint);
-                    SET_ADDRESS(&endpoint_addr, AT_USB, USB_ADDR_LEN, (char *)dst_addr);
+                    set_address(&endpoint_addr, AT_USB, USB_ADDR_LEN, (char *)dst_addr);
 
                     conversation = get_usb_conversation(pinfo, &pinfo->src, &endpoint_addr, pinfo->srcport, dst_endpoint);
                 }
@@ -2833,7 +2833,7 @@ try_dissect_next_protocol(proto_tree *tree, tvbuff_t *next_tvb, packet_info *pin
                     src_addr->bus_id = usb_conv_info->bus_id;
                     src_addr->device = usb_conv_info->device_address;
                     src_addr->endpoint = src_endpoint = GUINT32_TO_LE(endpoint);
-                    SET_ADDRESS(&endpoint_addr, AT_USB, USB_ADDR_LEN, (char *)src_addr);
+                    set_address(&endpoint_addr, AT_USB, USB_ADDR_LEN, (char *)src_addr);
 
                     conversation  = get_usb_conversation(pinfo, &endpoint_addr, &pinfo->dst, src_endpoint, pinfo->destport);
                 }
@@ -2971,6 +2971,7 @@ dissect_usb_setup_request(packet_info *pinfo, proto_tree *tree,
                           guint8 urb_type, usb_conv_info_t *usb_conv_info,
                           usb_header_t header_type)
 {
+    gint              setup_offset;
     gint              req_type;
     gint              ret;
     proto_tree       *parent, *setup_tree;
@@ -3001,9 +3002,8 @@ dissect_usb_setup_request(packet_info *pinfo, proto_tree *tree,
        contains the the setup packet without the request type
        and request-specific data
        all subsequent dissection routines work on this tvb */
-    next_tvb = tvb_new_composite();
-    tvb_composite_append(next_tvb, tvb_new_subset(tvb, offset, 7, 7));
 
+    setup_offset = offset;
     usb_trans_info->setup.request = tvb_get_guint8(tvb, offset);
     offset++;
     usb_trans_info->setup.wValue  = tvb_get_letohs(tvb, offset);
@@ -3017,14 +3017,23 @@ dissect_usb_setup_request(packet_info *pinfo, proto_tree *tree,
         offset = dissect_linux_usb_pseudo_header_ext(tvb, offset, pinfo, tree);
     }
 
+
     if (tvb_captured_length_remaining(tvb, offset) > 0) {
+        next_tvb = tvb_new_composite();
+        tvb_composite_append(next_tvb, tvb_new_subset(tvb, setup_offset, 7, 7));
+
         data_tvb = tvb_new_subset_remaining(tvb, offset);
         tvb_composite_append(next_tvb, data_tvb);
         offset += tvb_captured_length(data_tvb);
-
-        add_new_data_source(pinfo, next_tvb, "Linux USB Control");
+        tvb_composite_finalize(next_tvb);
+        next_tvb = tvb_new_child_real_data(tvb,
+                (const guint8 *) tvb_memdup(pinfo->pool, next_tvb, 0, tvb_captured_length(next_tvb)),
+                tvb_captured_length(next_tvb),
+                tvb_captured_length(next_tvb));
+        add_new_data_source(pinfo, next_tvb, "USB Control");
+    } else {
+        next_tvb = tvb_new_subset(tvb, setup_offset, 7, 7);
     }
-    tvb_composite_finalize(next_tvb);
 
     /* at this point, offset contains the number of bytes that we
        dissected */
@@ -3038,7 +3047,7 @@ dissect_usb_setup_request(packet_info *pinfo, proto_tree *tree,
     else {
         /* no standard request - pass it on to class-specific dissectors */
         ret = try_dissect_next_protocol(
-                setup_tree, next_tvb, pinfo, usb_conv_info, urb_type, tree);
+                parent, next_tvb, pinfo, usb_conv_info, urb_type, tree);
         if (ret <= 0) {
             /* no class-specific dissector could handle it,
                dissect it as generic setup request */
@@ -3046,6 +3055,11 @@ dissect_usb_setup_request(packet_info *pinfo, proto_tree *tree,
                     next_tvb, 0, 1, ENC_LITTLE_ENDIAN);
             dissect_usb_setup_generic(pinfo, setup_tree,
                     next_tvb, 1, usb_conv_info);
+        } else if (data_tvb) {
+            proto_tree_add_item(setup_tree, hf_usb_request_unknown_class,
+                    tvb, 0, 1, ENC_LITTLE_ENDIAN);
+            dissect_usb_setup_generic(pinfo, setup_tree,
+                    tvb, setup_offset, usb_conv_info);
         }
     }
 
@@ -3220,10 +3234,10 @@ usb_set_addr(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, guint16 bus_id
     src_addr->bus_id = GUINT16_TO_LE(bus_id);
     dst_addr->bus_id = GUINT16_TO_LE(bus_id);
 
-    SET_ADDRESS(&pinfo->net_src, AT_USB, USB_ADDR_LEN, (char *)src_addr);
-    COPY_ADDRESS_SHALLOW(&pinfo->src, &pinfo->net_src);
-    SET_ADDRESS(&pinfo->net_dst, AT_USB, USB_ADDR_LEN, (char *)dst_addr);
-    COPY_ADDRESS_SHALLOW(&pinfo->dst, &pinfo->net_dst);
+    set_address(&pinfo->net_src, AT_USB, USB_ADDR_LEN, (char *)src_addr);
+    copy_address_shallow(&pinfo->src, &pinfo->net_src);
+    set_address(&pinfo->net_dst, AT_USB, USB_ADDR_LEN, (char *)dst_addr);
+    copy_address_shallow(&pinfo->dst, &pinfo->net_dst);
 
     pinfo->ptype = PT_USB;
     pinfo->srcport = src_addr->endpoint;

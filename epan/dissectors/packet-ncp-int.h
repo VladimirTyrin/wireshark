@@ -29,19 +29,26 @@
 #define __PACKET_NCP_INT_H__
 
 #include <epan/expert.h>
+#include <epan/ptvcursor.h>
 
 typedef struct _ptvc_record ptvc_record;
 typedef struct _sub_ptvc_record sub_ptvc_record;
+
+typedef struct {
+	int			*hf_ptr;
+	const char		*first_string;
+	const char		*repeat_string;
+} info_string_t;
 
 struct _ptvc_record {
 	int			*hf_ptr;
 	gint			length;
 	const sub_ptvc_record	*sub_ptvc_rec;
-	unsigned int	endianness	: 1; /* 0=BE, 1=LE */
+	const info_string_t	*req_info_str;
+	unsigned int	endianness;
 	unsigned int	var_index	: 2;
 	unsigned int	repeat_index	: 2;
 	unsigned int	req_cond_index	: 8;
-	unsigned int	special_fmt	: 2;
 };
 
 /*
@@ -54,11 +61,6 @@ struct ncp_common_header {
 	guint8	task;
 	guint8	conn_high; /* type=0x5555 doesn't have this */
 };
-
-#define NCP_FMT_NONE			0
-#define NCP_FMT_NW_DATE			1
-#define NCP_FMT_NW_TIME			2
-#define NCP_FMT_UNICODE         3
 
 extern gboolean nds_defragment;
 extern gboolean nds_echo_eid;
@@ -79,13 +81,6 @@ typedef struct {
 	struct epan_dfilter	*dfilter;
 } conditional_record;
 
-typedef struct {
-	int			*hf_ptr;
-	const char		*first_string;
-	const char		*repeat_string;
-} info_string_t;
-
-
 struct novell_tap {
 	int stat;
 	int hdr;
@@ -98,7 +93,10 @@ typedef struct {
 	gint			ncp_error_index;
 } error_equivalency;
 
-typedef struct {
+struct _ncp_record;
+typedef void (ncp_expert_handler)(ptvcursor_t *ptvc, packet_info *pinfo, const struct _ncp_record *ncp_rec, gboolean request);
+
+typedef struct _ncp_record {
 	guint8			func;
 	guint8			subfunc;
 	guint8			has_subfunc;
@@ -109,7 +107,7 @@ typedef struct {
 	const error_equivalency	*errors;
 	const int		*req_cond_indexes;
 	unsigned int		req_cond_size_type;
-	const info_string_t	*req_info_str;
+	ncp_expert_handler  *expert_handler_func;
 } ncp_record;
 
 typedef struct {

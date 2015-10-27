@@ -56,6 +56,7 @@ static void rtpstream_draw(void *ti_ptr)
     g_signal_emit_by_name(top_level, "signal_rtpstream_update");
 */
     if (tapinfo && tapinfo->tap_draw) {
+        /* RTP_STREAM_DEBUG("streams: %d packets: %d", tapinfo->nstreams, tapinfo->npackets); */
         tapinfo->tap_draw(tapinfo);
     }
     return;
@@ -76,6 +77,7 @@ void rtpstream_scan(rtpstream_tapinfo_t *tapinfo, capture_file *cap_file, const 
     if (!tapinfo->is_registered)
         register_tap_listener_rtp_stream(tapinfo, fstring);
 
+    /* RTP_STREAM_DEBUG("scanning %s, filter: %s", cap_file->filename, fstring); */
     tapinfo->mode = TAP_ANALYSE;
     cf_retap_packets(cap_file);
 
@@ -141,9 +143,9 @@ gboolean rtp_stream_info_is_reverse(const rtp_stream_info_t *stream_a, rtp_strea
     if (stream_a == NULL || stream_b == NULL)
         return FALSE;
 
-    if ((ADDRESSES_EQUAL(&(stream_a->src_addr), &(stream_b->dest_addr)))
+    if ((addresses_equal(&(stream_a->src_addr), &(stream_b->dest_addr)))
         && (stream_a->src_port == stream_b->dest_port)
-        && (ADDRESSES_EQUAL(&(stream_a->dest_addr), &(stream_b->src_addr)))
+        && (addresses_equal(&(stream_a->dest_addr), &(stream_b->src_addr)))
         && (stream_a->dest_port == stream_b->src_port))
         return TRUE;
     else

@@ -84,7 +84,7 @@ libqtui_a_DEPENDENCIES =
 
 # Common headers
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) \
-	$(LIBGNUTLS_CFLAGS) $(PIE_CFLAGS)
+	$(LIBGNUTLS_CFLAGS)
 
 AM_CXXFLAGS = $(AM_CLEAN_CFLAGS)
 
@@ -152,9 +152,13 @@ column_preferences_frame.$(OBJEXT): ui_column_preferences_frame.h
 
 compiled_filter_output.$(OBJEXT): ui_compiled_filter_output.h
 
+conversation_hash_tables_dialog.$(OBJEXT): ui_conversation_hash_tables_dialog.h
+
 decode_as_dialog.$(OBJEXT): ui_decode_as_dialog.h
 
 display_filter_expression_dialog.$(OBJEXT): ui_display_filter_expression_dialog.h
+
+dissector_tables_dialog.$(OBJEXT): ui_dissector_tables_dialog.h
 
 enabled_protocols_dialog.$(OBJEXT): ui_enabled_protocols_dialog.h
 
@@ -182,6 +186,8 @@ funnel_text_dialog.$(OBJEXT): ui_funnel_text_dialog.h
 
 gsm_map_summary_dialog.$(OBJEXT): ui_gsm_map_summary_dialog.h
 
+iax2_analysis_dialog.$(OBJEXT): ui_iax2_analysis_dialog.h
+
 import_text_dialog.$(OBJEXT): ui_import_text_dialog.h
 
 io_graph_dialog.$(OBJEXT): ui_io_graph_dialog.h
@@ -195,6 +201,8 @@ lbm_lbtru_transport_dialog.$(OBJEXT): ui_lbm_lbtru_transport_dialog.h
 lbm_stream_dialog.$(OBJEXT): ui_lbm_stream_dialog.h
 
 lbm_uimflow_dialog.$(OBJEXT): ui_lbm_uimflow_dialog.h
+
+lte_rlc_graph_dialog.$(OBJEXT): ui_lte_rlc_graph_dialog.h
 
 main_welcome.$(OBJEXT): ui_main_welcome.h
 
@@ -226,10 +234,6 @@ print_dialog.$(OBJEXT): ui_print_dialog.h
 
 progress_frame.$(OBJEXT): ui_progress_frame.h
 
-rtp_analysis_dialog.$(OBJEXT): ui_rtp_analysis_dialog.h
-
-rtp_stream_dialog.$(OBJEXT): ui_rtp_stream_dialog.h
-
 profile_dialog.$(OBJEXT): ui_profile_dialog.h
 
 protocol_hierarchy_dialog.$(OBJEXT): ui_protocol_hierarchy_dialog.h
@@ -239,6 +243,10 @@ remote_capture_dialog.$(OBJEXT): ui_remote_capture_dialog.h
 remote_settings_dialog.$(OBJEXT): ui_remote_settings_dialog.h
 
 resolved_addresses_dialog.$(OBJEXT): ui_resolved_addresses_dialog.h
+
+rtp_analysis_dialog.$(OBJEXT): ui_rtp_analysis_dialog.h
+
+rtp_player_dialog.$(OBJEXT): ui_rtp_player_dialog.h
 
 rtp_stream_dialog.$(OBJEXT): ui_rtp_stream_dialog.h
 
@@ -259,6 +267,8 @@ sctp_graph_arwnd_dialog.$(OBJEXT): ui_sctp_graph_arwnd_dialog.h
 sctp_graph_byte_dialog.$(OBJEXT): ui_sctp_graph_byte_dialog.h
 
 splash_overlay.$(OBJEXT): ui_splash_overlay.h
+
+supported_protocols_dialog.$(OBJEXT): ui_supported_protocols_dialog.h
 
 tap_parameter_dialog.$(OBJEXT): ui_tap_parameter_dialog.h
 
@@ -294,5 +304,4 @@ EXTRA_DIST = \
 	Makefile.common			\
 	Makefile_custom.common		\
 	Wireshark.pro			\
-	display_filter_16.svg		\
 	gpl-template.txt

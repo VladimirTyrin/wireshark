@@ -33,7 +33,7 @@
 #include <epan/stat_groups.h>
 
 #include "ui/simple_dialog.h"
-#include "ui/utf8_entities.h"
+#include <wsutil/utf8_entities.h>
 
 #include "ui/gtk/conversations_table.h"
 #include "ui/gtk/filter_utils.h"
@@ -168,9 +168,9 @@ ct_sort_func(GtkTreeModel *model,
 
     switch(data_column){
     case CONV_COLUMN_SRC_ADDR: /* Source address */
-        return(CMP_ADDRESS(&conv1->src_address, &conv2->src_address));
+        return(cmp_address(&conv1->src_address, &conv2->src_address));
     case CONV_COLUMN_DST_ADDR: /* Destination address */
-        return(CMP_ADDRESS(&conv1->dst_address, &conv2->dst_address));
+        return(cmp_address(&conv1->dst_address, &conv2->dst_address));
     case CONV_COLUMN_SRC_PORT: /* Source port */
         CMP_NUM(conv1->src_port, conv2->src_port);
     case CONV_COLUMN_DST_PORT: /* Destination port */

@@ -892,37 +892,12 @@ EXTRA_DIST = \
 	image/capture_comment_add.png	\
 	image/capture_comment_disabled.png	\
 	image/capture_comment_update.png	\
+	image/capture_comment_update.svg	\
 	image/clist_ascend.xpm			\
 	image/clist_descend.xpm			\
 	image/copy-8.png			\
-	image/dfilter_apply_disabled.png	\
-	image/dfilter_apply_hover.png		\
-	image/dfilter_apply_normal.png		\
-	image/dfilter_apply_pressed.png		\
-	image/dfilter_bookmark_disabled.png	\
-	image/dfilter_bookmark_hover.png	\
-	image/dfilter_bookmark_normal.png	\
-	image/dfilter_bookmark_pressed.png	\
-	image/dfilter_dropdown.png		\
-	image/dfilter_erase_active.png		\
-	image/dfilter_erase_normal.png		\
-	image/dfilter_erase_selected.png	\
-	image/dfilter_refresh_active.png	\
-	image/dfilter_refresh_normal.png	\
-	image/display_filter.qrc		\
 	image/dumpcap.rc.in	\
 	image/editcap.rc.in	\
-	image/expert_chat.png	\
-	image/expert_chat@2x.png	\
-	image/expert_error.png	\
-	image/expert_error@2x.png	\
-	image/expert_indicators.svg	\
-	image/expert_none.png	\
-	image/expert_none@2x.png	\
-	image/expert_note.png	\
-	image/expert_note@2x.png	\
-	image/expert_warn.png	\
-	image/expert_warn@2x.png	\
 	image/file_dlg_win32.rc \
 	image/hi16-app-wireshark.png	\
 	image/hi32-app-wireshark.png	\
@@ -962,7 +937,6 @@ EXTRA_DIST = \
 	image/README.image			\
 	image/reordercap.rc.in			\
 	image/rubberband-16.png			\
-	image/status.qrc			\
 	image/stock_dialog_error_48.xpm		\
 	image/stock_dialog_info_48.xpm		\
 	image/stock_dialog_question_48.xpm	\
@@ -970,9 +944,50 @@ EXTRA_DIST = \
 	image/stock_dialog_warning_48.xpm	\
 	image/text2pcap.rc.in			\
 	image/tfshark.rc.in			\
-	image/toolbar/12x12/media-playback-start.png	\
-	image/toolbar/12x12/media-playback-start.svg	\
-	image/toolbar/12x12/media-playback-start@2x.png	\
+	image/toolbar/14x14/x-capture-comment-update.png	\
+	image/toolbar/14x14/x-capture-comment-update.svg	\
+	image/toolbar/14x14/x-capture-comment-update@2x.png	\
+	image/toolbar/14x14/x-expert-chat.png	\
+	image/toolbar/14x14/x-expert-chat@2x.png	\
+	image/toolbar/14x14/x-expert-error.png	\
+	image/toolbar/14x14/x-expert-error@2x.png	\
+	image/toolbar/14x14/x-expert-indicators-all.svg	\
+	image/toolbar/14x14/x-expert-none.png	\
+	image/toolbar/14x14/x-expert-none@2x.png	\
+	image/toolbar/14x14/x-expert-note.png	\
+	image/toolbar/14x14/x-expert-note@2x.png	\
+	image/toolbar/14x14/x-expert-warn.png	\
+	image/toolbar/14x14/x-expert-warn@2x.png	\
+	image/toolbar/14x14/x-filter-bookmark.active.png \
+	image/toolbar/14x14/x-filter-bookmark.active.svg \
+	image/toolbar/14x14/x-filter-bookmark.active@2x.png \
+	image/toolbar/14x14/x-filter-bookmark.png \
+	image/toolbar/14x14/x-filter-bookmark.selected.png \
+	image/toolbar/14x14/x-filter-bookmark.selected.svg \
+	image/toolbar/14x14/x-filter-bookmark.selected@2x.png \
+	image/toolbar/14x14/x-filter-bookmark.svg \
+	image/toolbar/14x14/x-filter-bookmark@2x.png \
+	image/toolbar/14x14/x-filter-clear.active.png \
+	image/toolbar/14x14/x-filter-clear.active.svg \
+	image/toolbar/14x14/x-filter-clear.active@2x.png \
+	image/toolbar/14x14/x-filter-clear.png \
+	image/toolbar/14x14/x-filter-clear.selected.png \
+	image/toolbar/14x14/x-filter-clear.selected.svg \
+	image/toolbar/14x14/x-filter-clear.selected@2x.png \
+	image/toolbar/14x14/x-filter-clear.svg \
+	image/toolbar/14x14/x-filter-clear@2x.png \
+	image/toolbar/14x14/x-filter-dropdown.png \
+	image/toolbar/14x14/x-filter-dropdown.svg \
+	image/toolbar/14x14/x-filter-dropdown@2x.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.active.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.active.svg \
+	image/toolbar/14x14/x-filter-matching-bookmark.active@2x.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.selected.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.selected.svg \
+	image/toolbar/14x14/x-filter-matching-bookmark.selected@2x.png \
+	image/toolbar/14x14/x-filter-matching-bookmark.svg \
+	image/toolbar/14x14/x-filter-matching-bookmark@2x.png \
 	image/toolbar/16x16/edit-find.png		\
 	image/toolbar/16x16/edit-find.svg		\
 	image/toolbar/16x16/edit-find@2x.png		\
@@ -1042,6 +1057,15 @@ EXTRA_DIST = \
 	image/toolbar/16x16/zoom-out.png		\
 	image/toolbar/16x16/zoom-out.svg		\
 	image/toolbar/16x16/zoom-out@2x.png		\
+	image/toolbar/24x14/x-filter-apply.active.png \
+	image/toolbar/24x14/x-filter-apply.active.svg \
+	image/toolbar/24x14/x-filter-apply.active@2x.png \
+	image/toolbar/24x14/x-filter-apply.png \
+	image/toolbar/24x14/x-filter-apply.selected.png \
+	image/toolbar/24x14/x-filter-apply.selected.svg \
+	image/toolbar/24x14/x-filter-apply.selected@2x.png \
+	image/toolbar/24x14/x-filter-apply.svg \
+	image/toolbar/24x14/x-filter-apply@2x.png \
 	image/toolbar/24x24/edit-find.png	\
 	image/toolbar/24x24/edit-find.svg	\
 	image/toolbar/24x24/edit-find@2x.png	\
@@ -1123,7 +1147,13 @@ EXTRA_DIST = \
 	image/toolbar/capture_ethernet_16.xpm	\
 	image/toolbar/capture_filter_24.xpm	\
 	image/toolbar/capture_interfaces_16.png	\
+	image/toolbar/capture_interfaces_16.svg \
 	image/toolbar/capture_interfaces_24.png	\
+	image/toolbar/capture_interfaces_24.svg \
+	image/toolbar/capture_pause_16.png	\
+	image/toolbar/capture_pause_16.svg	\
+	image/toolbar/capture_pause_24.png	\
+	image/toolbar/capture_pause_24.svg	\
 	image/toolbar/capture_prepare_16.xpm	\
 	image/toolbar/checkbox_16.xpm		\
 	image/toolbar/colorize_24.xpm		\
@@ -1165,12 +1195,15 @@ EXTRA_DIST = \
 	image/toolbar/remote_sat_16.png	\
 	image/toolbar/resize_columns_24.xpm	\
 	image/toolbar/svg-to-png.sh	\
+	image/toolbar/svg/x-filter-apply.svg	\
+	image/toolbar/svg/x-filter-bookmark.svg	\
+	image/toolbar/svg/x-filter-clear.svg	\
 	image/toolbar/telephone_16.xpm	\
 	image/toolbar/telephony_16.xpm	\
 	image/toolbar/time_24.xpm	\
 	image/toolbar/voip_flow_24.xpm	\
 	image/toolbar/web_support_24.xpm	\
-	image/toolbar/wep_closed_24.xpm \
+	image/toolbar/wep_closed_24.xpm	\
 	image/tshark.rc.in	\
 	image/voip_select.xpm	\
 	image/wireshark.exe.manifest.in \
@@ -1276,9 +1309,11 @@ EXTRA_DIST = \
 	cmake/modules/FindLYNX.cmake		\
 	cmake/modules/FindM.cmake		\
 	cmake/modules/FindNL.cmake		\
+	cmake/modules/FindNSIS.cmake		\
 	cmake/modules/FindOS_X_FRAMEWORKS.cmake	\
 	cmake/modules/FindPCAP.cmake		\
 	cmake/modules/FindPOD.cmake		\
+	cmake/modules/FindPortableApps.cmake	\
 	cmake/modules/FindPORTAUDIO.cmake	\
 	cmake/modules/FindPowerShell.cmake	\
 	cmake/modules/FindSBC.cmake		\
@@ -1286,7 +1321,7 @@ EXTRA_DIST = \
 	cmake/modules/FindSETCAP.cmake		\
 	cmake/modules/FindSH.cmake		\
 	cmake/modules/FindSMI.cmake		\
-	cmake/modules/FindWinSparkle.cmake		\
+	cmake/modules/FindWinSparkle.cmake	\
 	cmake/modules/FindWireshark.cmake	\
 	cmake/modules/FindWSWinLibs.cmake	\
 	cmake/modules/FindXMLLINT.cmake		\
@@ -1298,6 +1333,7 @@ EXTRA_DIST = \
 	cmake/modules/gmxTestLargeFiles.cmake	\
 	cmake/modules/hhc.cmake	\
 	cmake/modules/LICENSE.txt		\
+	cmake/modules/LocatePythonExecutable.cmake	\
 	cmake/modules/LocatePythonModule.cmake	\
 	cmake/modules/readme.txt		\
 	cmake/modules/UseABICheck.cmake		\
@@ -1322,6 +1358,7 @@ EXTRA_DIST = \
 	ui/win32/print_win32.c			\
 	ui/win32/print_win32.h			\
 	ui/win32/settings.ini			\
+	version.h.in				\
 	CPackConfig.txt
 
 install-exec-hook:
@@ -1638,6 +1675,7 @@ checkapi: checkapi_local
 ##	cd epan/ftypes && $(MAKE) checkapi
 ##	cd epan/wslua && $(MAKE) checkapi
 	cd epan/dissectors && $(MAKE) checkapi
+	cd epan/dissectors/dcerpc && $(MAKE) checkapi
 	cd plugins && $(MAKE) checkapi
 	cd wsutil && $(MAKE) checkapi
 
